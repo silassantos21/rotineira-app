@@ -1,0 +1,56 @@
+{
+  "expo": {
+    "name": "Rotineira",
+    "slug": "rotineira-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "rotineira",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FCF2E8",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.rotineira.app",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Usado para foto de perfil familiar."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FCF2E8"
+      },
+      "package": "com.rotineira.app"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-apple-authentication",
+      "expo-notifications",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FCF2E8",
+          "image": "./assets/images/logo_fundo.png",
+          "imageWidth": 220
+        }
+      ],
+      "expo-asset",
+      "expo-sharing"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e7027145-7f00-4c0f-9e95-fe530876ff61"
+      }
+    },
+    "owner": "silassantos30"
+  }
+}

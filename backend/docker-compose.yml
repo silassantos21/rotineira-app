@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    depends_on:
+      - redis
+
+  celery:
+    build: .
+    env_file: .env
+    volumes:
+      - .:/app
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:7-alpine
+    # porta não exposta ao host — api e celery acessam internamente pela rede Docker
