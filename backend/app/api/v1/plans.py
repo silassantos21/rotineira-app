@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from supabase import create_client
 from app.core.security import get_current_user
 from app.core.config import settings
-from app.schemas.plans import WeeklyPlanCreate, WeeklyPlanResponse
+from app.schemas.plans import WeeklyPlanCreate, WeeklyPlanResponse, AdaptPlanRequest
 
 router = APIRouter()
 
-_FREE_WEEKLY_LIMIT = 1
+_FREE_WEEKLY_LIMIT = 999  # liberado para período de testes
 _WEEK_SECONDS = 7 * 24 * 3600
 
 
@@ -79,6 +79,43 @@ async def generate_plan(
     generate_weekly_plan.delay(plan["id"], user_id)
 
     return _plan_response(plan)
+
+
+@router.post("/{plan_id}/adapt", response_model=WeeklyPlanResponse, status_code=202)
+async def adapt_plan(
+    plan_id: str,
+    body: AdaptPlanRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["sub"]
+    sb = _sb()
+
+    original = (
+        sb.table("weekly_plans")
+        .select("*")
+        .eq("id", plan_id)
+        .eq("user_id", user_id)
+        .eq("status", "done")
+        .maybe_single()
+        .execute()
+    )
+    if not original.data:
+        raise HTTPException(status_code=404, detail="Plano não encontrado ou ainda não concluído")
+
+    result = sb.table("weekly_plans").insert({
+        "user_id": user_id,
+        "family_profile_id": original.data["family_profile_id"],
+        "week_start": original.data["week_start"],
+        "status": "pending",
+        "parent_plan_id": plan_id,
+    }).execute()
+
+    new_plan = result.data[0]
+
+    from app.workers.tasks import adapt_weekly_plan
+    adapt_weekly_plan.delay(new_plan["id"], plan_id, user_id, body.feedback)
+
+    return _plan_response(new_plan)
 
 
 @router.get("/{plan_id}", response_model=WeeklyPlanResponse)

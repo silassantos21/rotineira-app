@@ -8,11 +8,16 @@ web-build/
 .DS_Store
 
 # Backend
-backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 backend/.venv/
 backend/*.egg-info/
 backend/.pytest_cache/
 backend/celerybeat-schedule
+
+# Supabase temp
+supabase/.temp/
 
 # Credentials (NUNCA commitar)
 google-services.json

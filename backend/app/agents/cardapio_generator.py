@@ -1,6 +1,9 @@
 import json
+import time
 from pydantic import BaseModel, ValidationError
 from typing import List, Dict
+
+_TRANSIENT_CODES = ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded")
 
 
 class MealPortionAI(BaseModel):
@@ -228,6 +231,9 @@ class CardapioGeneratorAgent:
                         break
                 except Exception as e:
                     last_error = Exception(f"{provider_name}: {e}")
-                    break  # erro no provider — tenta o próximo
+                    if any(code in str(e) for code in _TRANSIENT_CODES) and attempt < 2:
+                        time.sleep(8 * (attempt + 1))  # 8s, 16s
+                        continue
+                    break  # erro permanente — tenta próximo provider
 
         raise ValueError(f"Falha na geração do cardápio: {last_error}")

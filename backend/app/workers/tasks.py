@@ -66,4 +66,56 @@ def generate_weekly_plan(self, plan_id: str, user_id: str):
             }).eq("id", plan_id).execute()
         except Exception:
             pass
+        try:
+            row = sb.table("user_profiles").select("generation_count_week").eq("id", user_id).maybe_single().execute()
+            if row.data:
+                restored = max(0, (row.data.get("generation_count_week") or 1) - 1)
+                sb.table("user_profiles").update({"generation_count_week": restored}).eq("id", user_id).execute()
+        except Exception:
+            pass
+        raise
+
+
+@celery_app.task(bind=True, name="tasks.adapt_weekly_plan")
+def adapt_weekly_plan(self, plan_id: str, parent_plan_id: str, user_id: str, feedback: str):
+    sb = _get_supabase()
+
+    try:
+        sb.table("weekly_plans").update({"status": "processing"}).eq("id", plan_id).execute()
+
+        original_res = sb.table("weekly_plans").select("*").eq("id", parent_plan_id).maybe_single().execute()
+        if not original_res.data:
+            raise ValueError("Plano original não encontrado")
+
+        profile_res = sb.table("family_profiles").select("*").eq("user_id", user_id).maybe_single().execute()
+        if not profile_res.data:
+            raise ValueError("Perfil familiar não encontrado para o usuário")
+
+        from app.agents.cardapio_adaptacao import CardapioAdaptacaoAgent
+        agent = CardapioAdaptacaoAgent(
+            gemini_api_key=settings.GEMINI_API_KEY,
+            openai_api_key=settings.OPENAI_API_KEY,
+            mock=settings.MOCK_AI,
+        )
+        result = agent.adapt(original_res.data, profile_res.data, feedback)
+
+        sb.table("weekly_plans").update({
+            "status": "done",
+            "meals": [m.model_dump() for m in result.meals],
+            "shopping_list": [s.model_dump() for s in result.shopping_list],
+        }).eq("id", plan_id).execute()
+
+        user_res = sb.table("user_profiles").select("expo_push_token").eq("id", user_id).maybe_single().execute()
+        push_token = (user_res.data or {}).get("expo_push_token")
+        if push_token:
+            _send_push(push_token, plan_id)
+
+    except Exception as exc:
+        try:
+            sb.table("weekly_plans").update({
+                "status": "error",
+                "error_message": str(exc)[:500],
+            }).eq("id", plan_id).execute()
+        except Exception:
+            pass
         raise

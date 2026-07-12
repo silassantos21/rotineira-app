@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback } from 'react'
 import {
   View,
   Text,
@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native'
-import { Stack, router } from 'expo-router'
+import { Stack, router, useFocusEffect } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useQuery } from '@tanstack/react-query'
-import { Feather } from '@expo/vector-icons'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Feather, MaterialCommunityIcons as MCI } from '@expo/vector-icons'
 import { colors } from '../../src/theme/colors'
 import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
@@ -36,11 +36,25 @@ function formatWeekStart(dateStr: string): string {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
+function formatCreatedAt(dateStr: string): string {
+  const date = new Date(dateStr)
+  const day = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return `Gerado em ${day} às ${time}`
+}
+
 export default function HistoryScreen() {
+  const queryClient = useQueryClient()
   const { data: plans, isLoading } = useQuery<WeeklyPlan[]>({
     queryKey: ['plans'],
     queryFn: listPlans,
   })
+
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['plans'] })
+    }, [queryClient])
+  )
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -59,7 +73,7 @@ export default function HistoryScreen() {
       ) : !plans?.length ? (
         <View style={styles.centered}>
           <View style={styles.emptyIcon}>
-            <Feather name="clock" size={32} color={colors.brand.secondary} />
+            <MCI name="history" size={32} color={colors.brand.secondary} />
           </View>
           <Text style={styles.emptyTitle}>Nenhum plano gerado ainda</Text>
           <Text style={styles.emptySubtitle}>
@@ -68,12 +82,22 @@ export default function HistoryScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-          <Text style={styles.countLabel}>
-            {plans.length} {plans.length === 1 ? 'plano gerado' : 'planos gerados'}
-          </Text>
-          {plans.map((plan) => (
-            <PlanCard key={plan.id} plan={plan} />
-          ))}
+          {(() => {
+            const adaptedParentIds = new Set(
+              plans.filter((p) => p.parent_plan_id).map((p) => p.parent_plan_id!)
+            )
+            const visible = plans.filter((p) => !adaptedParentIds.has(p.id))
+            return (
+              <>
+                <Text style={styles.countLabel}>
+                  {visible.length} {visible.length === 1 ? 'plano gerado' : 'planos gerados'}
+                </Text>
+                {visible.map((plan) => (
+                  <PlanCard key={plan.id} plan={plan} />
+                ))}
+              </>
+            )
+          })()}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -93,7 +117,7 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
       activeOpacity={canView ? 0.7 : 1}
     >
       <View style={[styles.cardIconWrap, { backgroundColor: color + '1A' }]}>
-        <Feather name="calendar" size={20} color={color} />
+        <MCI name="calendar-week-outline" size={20} color={color} />
       </View>
 
       <View style={styles.cardBody}>
@@ -102,10 +126,19 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
           <View style={[styles.badge, { backgroundColor: color + '1A' }]}>
             <Text style={[styles.badgeText, { color }]}>{label}</Text>
           </View>
+          {plan.parent_plan_id && (
+            <View style={styles.adaptedBadge}>
+              <Feather name="refresh-cw" size={10} color={colors.brand.secondary} />
+              <Text style={styles.adaptedBadgeText}>Adaptado</Text>
+            </View>
+          )}
           {mealCount > 0 && (
             <Text style={styles.mealCount}>{mealCount} refeições</Text>
           )}
         </View>
+        {plan.created_at && (
+          <Text style={styles.createdAt}>{formatCreatedAt(plan.created_at)}</Text>
+        )}
         {plan.status === 'error' && plan.error_message && (
           <Text style={styles.errorMsg} numberOfLines={2}>{plan.error_message}</Text>
         )}
@@ -177,5 +210,20 @@ const styles = StyleSheet.create({
   },
   badgeText: { ...textStyles.caption, fontFamily: fontFamily.semiBold },
   mealCount: { ...textStyles.caption, color: colors.text.muted },
+  adaptedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing['2'],
+    paddingVertical: 2,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.secondary + '1A',
+  },
+  adaptedBadgeText: {
+    ...textStyles.caption,
+    fontFamily: fontFamily.semiBold,
+    color: colors.brand.secondary,
+  },
+  createdAt: { ...textStyles.caption, color: colors.text.muted, marginTop: 2 },
   errorMsg:  { ...textStyles.caption, color: colors.status.error },
 })

@@ -30,7 +30,10 @@
       "expo-router",
       "expo-font",
       "expo-apple-authentication",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        { "color": "#556B2F" }
+      ],
       [
         "expo-splash-screen",
         {

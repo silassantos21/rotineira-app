@@ -35,6 +35,8 @@ export interface WeeklyPlan {
   shopping_list?: ShoppingItem[]
   assembly_guide?: Record<string, unknown>
   error_message?: string
+  parent_plan_id?: string
+  created_at?: string
 }
 
 export const SHOPPING_CATEGORIES = [

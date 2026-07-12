@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
   View,
   Text,
@@ -7,16 +7,24 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
+  TextInput,
+  Alert,
+  Animated,
+  Image,
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as Print from 'expo-print'
+import * as Sharing from 'expo-sharing'
+import * as FileSystem from 'expo-file-system/legacy'
 import { Stack, useLocalSearchParams, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useQuery } from '@tanstack/react-query'
-import { Feather } from '@expo/vector-icons'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { Feather, MaterialCommunityIcons as MCI } from '@expo/vector-icons'
 import { colors } from '../../src/theme/colors'
 import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { Button } from '../../src/components/ui/Button'
-import { getPlan } from '../../src/services/plans'
+import { getPlan, adaptPlan } from '../../src/services/plans'
 import type { WeeklyPlan, DailyMeal, ShoppingItem, MealPortion } from '../../src/types/plans'
 import { SHOPPING_CATEGORIES } from '../../src/types/plans'
 
@@ -25,6 +33,7 @@ type Tab = 'cardapio' | 'compras' | 'montagem'
 export default function PlanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<Tab>('cardapio')
+  const [showAdaptModal, setShowAdaptModal] = useState(false)
 
   const { data: plan, isError } = useQuery<WeeklyPlan>({
     queryKey: ['plan', id],
@@ -34,6 +43,17 @@ export default function PlanScreen() {
       return status === 'pending' || status === 'processing' ? 3000 : false
     },
     enabled: !!id,
+  })
+
+  const adaptMutation = useMutation({
+    mutationFn: (feedback: string) => adaptPlan(id, feedback),
+    onSuccess: (newPlan) => {
+      setShowAdaptModal(false)
+      router.push(`/plan?id=${newPlan.id}`)
+    },
+    onError: (err: Error) => {
+      Alert.alert('Erro', err.message ?? 'Não foi possível adaptar o cardápio.')
+    },
   })
 
   const isLoading = !plan || plan.status === 'pending' || plan.status === 'processing'
@@ -60,29 +80,110 @@ export default function PlanScreen() {
             showsVerticalScrollIndicator={false}
           >
             {activeTab === 'cardapio' && (
-              <MealsSection meals={plan.meals} />
+              <>
+                <MealsSection meals={plan.meals} />
+                <TouchableOpacity
+                  style={styles.adaptButton}
+                  onPress={() => setShowAdaptModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="refresh-cw" size={15} color={colors.brand.primary} />
+                  <Text style={styles.adaptButtonText}>Adaptar cardápio com IA</Text>
+                </TouchableOpacity>
+                <Text style={styles.adaptHint}>
+                  Descreva o que quer mudar e a IA ajusta o plano
+                </Text>
+              </>
             )}
             {activeTab === 'compras' && plan.shopping_list && (
-              <ShoppingSection items={plan.shopping_list} />
+              <ShoppingSection items={plan.shopping_list} weekStart={plan.week_start} planId={id} />
             )}
             {activeTab === 'montagem' && (
               <AssemblySection meals={plan.meals} />
             )}
           </ScrollView>
+
+          <FeedbackModal
+            visible={showAdaptModal}
+            isLoading={adaptMutation.isPending}
+            onClose={() => setShowAdaptModal(false)}
+            onSubmit={(feedback) => adaptMutation.mutate(feedback)}
+          />
         </>
       )}
     </SafeAreaView>
   )
 }
 
+const _LOADING_STEPS = [
+  'Analisando perfil familiar...',
+  'Calculando porções por membro...',
+  'Montando cardápio da semana...',
+  'Organizando lista de compras...',
+  'Finalizando seu plano...',
+]
+
 function LoadingView() {
+  const pulseAnim = useRef(new Animated.Value(1)).current
+  const [currentStep, setCurrentStep] = useState(0)
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.35, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+      ])
+    ).start()
+
+    const interval = setInterval(() => {
+      setCurrentStep((s) => (s < _LOADING_STEPS.length - 1 ? s + 1 : s))
+    }, 5500)
+
+    return () => {
+      pulseAnim.stopAnimation()
+      clearInterval(interval)
+    }
+  }, [])
+
   return (
-    <View style={styles.centered}>
-      <ActivityIndicator size="large" color={colors.brand.primary} />
-      <Text style={styles.loadingTitle}>Montando seu cardápio com IA...</Text>
-      <Text style={styles.loadingSubtitle}>
-        Isso pode levar até 30 segundos.{'\n'}Estamos calculando as porções para cada membro.
-      </Text>
+    <View style={styles.loadingContainer}>
+      <Animated.Image
+        source={require('../../assets/images/logo.png')}
+        style={[styles.loadingLogo, { opacity: pulseAnim }]}
+        resizeMode="contain"
+      />
+
+      <View style={styles.stepsCard}>
+        {_LOADING_STEPS.map((label, i) => {
+          const isDone = i < currentStep
+          const isActive = i === currentStep
+          return (
+            <View key={i} style={styles.loadingStepRow}>
+              <View style={styles.loadingStepIconCol}>
+                {isDone ? (
+                  <Feather name="check" size={14} color={colors.status.success} />
+                ) : isActive ? (
+                  <ActivityIndicator size="small" color={colors.brand.primary} />
+                ) : (
+                  <View style={styles.loadingStepDot} />
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.loadingStepLabel,
+                  isDone && styles.loadingStepLabelDone,
+                  isActive && styles.loadingStepLabelActive,
+                  !isDone && !isActive && styles.loadingStepLabelFuture,
+                ]}
+              >
+                {label}
+              </Text>
+            </View>
+          )
+        })}
+      </View>
+
+      <Text style={styles.loadingSubtitle}>Isso pode levar até 30 segundos.</Text>
     </View>
   )
 }
@@ -103,21 +204,21 @@ function ErrorView({ message, onBack }: { message?: string; onBack: () => void }
 }
 
 function TabBar({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) => void }) {
-  const tabs: { key: Tab; label: string; icon: React.ComponentProps<typeof Feather>['name'] }[] = [
-    { key: 'cardapio',  label: 'Cardápio',   icon: 'calendar' },
-    { key: 'compras',   label: 'Compras',    icon: 'shopping-cart' },
-    { key: 'montagem',  label: 'Montagem',   icon: 'package' },
+  const tabs: { key: Tab; label: string; mciIcon: React.ComponentProps<typeof MCI>['name'] }[] = [
+    { key: 'cardapio', label: 'Cardápio', mciIcon: 'calendar-week-outline' },
+    { key: 'compras',  label: 'Compras',  mciIcon: 'cart-outline' },
+    { key: 'montagem', label: 'Montagem', mciIcon: 'bowl-mix-outline' },
   ]
   return (
     <View style={styles.tabBar}>
-      {tabs.map(({ key, label, icon }) => (
+      {tabs.map(({ key, label, mciIcon }) => (
         <TouchableOpacity
           key={key}
           style={[styles.tab, activeTab === key && styles.tabActive]}
           onPress={() => onSelect(key)}
           activeOpacity={0.8}
         >
-          <Feather name={icon} size={14} color={activeTab === key ? colors.brand.primary : colors.text.muted} />
+          <MCI name={mciIcon} size={16} color={activeTab === key ? colors.brand.primary : colors.text.muted} />
           <Text style={[styles.tabText, activeTab === key && styles.tabTextActive]}>{label}</Text>
         </TouchableOpacity>
       ))}
@@ -252,6 +353,69 @@ function PrepModal({ meal, visible, onClose }: { meal: DailyMeal; visible: boole
   )
 }
 
+function FeedbackModal({
+  visible,
+  isLoading,
+  onClose,
+  onSubmit,
+}: {
+  visible: boolean
+  isLoading: boolean
+  onClose: () => void
+  onSubmit: (feedback: string) => void
+}) {
+  const [text, setText] = useState('')
+
+  function handleSubmit() {
+    const trimmed = text.trim()
+    if (trimmed) onSubmit(trimmed)
+  }
+
+  function handleClose() {
+    setText('')
+    onClose()
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
+        <View style={styles.modalHeader}>
+          <View style={styles.modalTitleBlock}>
+            <Text style={styles.modalTitle}>Adaptar cardápio</Text>
+          </View>
+          <TouchableOpacity onPress={handleClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Feather name="x" size={22} color={colors.text.muted} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <Text style={styles.feedbackDesc}>
+            Descreva o que quer mudar. Pode ser troca de ingrediente, dia específico, restrição nova ou qualquer ajuste — a IA adapta apenas o necessário.
+          </Text>
+          <TextInput
+            style={styles.feedbackInput}
+            value={text}
+            onChangeText={setText}
+            placeholder="Ex: Trocar frango por peixe na quarta. Sem glúten em toda a semana. Prefiro arroz integral..."
+            placeholderTextColor={colors.text.muted}
+            multiline
+            numberOfLines={5}
+            textAlignVertical="top"
+            editable={!isLoading}
+          />
+          <View style={styles.feedbackButton}>
+            <Button
+              label={isLoading ? 'Gerando adaptação...' : 'Gerar adaptação'}
+              onPress={handleSubmit}
+              disabled={!text.trim() || isLoading}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  )
+}
+
 function AssemblySection({ meals }: { meals: DailyMeal[] }) {
   const members = Object.keys(meals[0]?.portions ?? {})
   const [selected, setSelected] = useState(members[0] ?? '')
@@ -343,7 +507,179 @@ function ComponentBar({ label, value, total, color }: { label: string; value: nu
   )
 }
 
-function ShoppingSection({ items }: { items: ShoppingItem[] }) {
+function buildWeekRange(weekStart: string): string {
+  const [year, month, day] = weekStart.split('-').map(Number)
+  const monday = new Date(year, month - 1, day)
+  const sunday = new Date(year, month - 1, day + 6)
+  const fmt = (d: Date) =>
+    `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+  return `${fmt(monday)} a ${fmt(sunday)}`
+}
+
+function buildShoppingHtml(items: ShoppingItem[], weekStart: string): string {
+  const range = buildWeekRange(weekStart)
+  const total = items.reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
+
+  const categoryRows = SHOPPING_CATEGORIES.map((cat) => {
+    const catItems = items.filter((i) => i.category === cat)
+    if (catItems.length === 0) return ''
+    const rows = catItems
+      .map(
+        (item) => `
+        <div class="item-row">
+          <span class="dot"></span>
+          <span class="item-name">${item.name}</span>
+          <span class="item-qty">${item.quantity}</span>
+          ${item.price_estimate_brl > 0
+            ? `<span class="item-price">R$&nbsp;${item.price_estimate_brl.toFixed(2).replace('.', ',')}</span>`
+            : '<span class="item-price"></span>'}
+        </div>`
+      )
+      .join('')
+    return `<div class="category-title">${cat}</div>${rows}`
+  }).join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @page { margin: 24px 28px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, Helvetica, Arial, sans-serif;
+      background-color: #F8F5EE;
+      color: #4A5240;
+      padding: 20px 16px 36px;
+      font-size: 14px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .header {
+      background-color: #556B2F;
+      border-radius: 14px;
+      padding: 22px 24px 18px;
+      margin-bottom: 20px;
+    }
+    .app-name {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 5px;
+      color: #F8F5EE;
+    }
+    .header-sub {
+      font-size: 12px;
+      color: #CCDABB;
+      margin-top: 6px;
+      letter-spacing: 0.3px;
+    }
+    .total-card {
+      background-color: #FFFFFF;
+      border: 1.5px solid #D4CBBF;
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .total-left {}
+    .total-label { font-size: 11px; color: #9BA38D; letter-spacing: 0.3px; }
+    .total-disclaimer { font-size: 10px; color: #B5BDAA; margin-top: 4px; }
+    .total-value {
+      font-size: 30px;
+      font-weight: 700;
+      color: #556B2F;
+      letter-spacing: -0.5px;
+    }
+    .category-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #556B2F;
+      text-transform: uppercase;
+      margin: 18px 0 6px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #556B2F;
+    }
+    .item-row {
+      display: flex;
+      align-items: center;
+      padding: 9px 4px;
+      border-bottom: 1px solid #EADFCF;
+      gap: 8px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background-color: #7B8D63;
+      flex-shrink: 0;
+    }
+    .item-name { flex: 1; font-size: 13.5px; color: #2D3B1F; }
+    .item-qty { font-size: 12px; color: #9BA38D; min-width: 48px; text-align: right; }
+    .item-price {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #C9775D;
+      min-width: 72px;
+      text-align: right;
+    }
+    .footer {
+      margin-top: 32px;
+      text-align: center;
+      font-size: 10px;
+      color: #B5BDAA;
+      letter-spacing: 0.3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="app-name">ROTINEIRA</div>
+    <div class="header-sub">Lista de Compras &nbsp;·&nbsp; Semana de ${range}</div>
+  </div>
+
+  <div class="total-card">
+    <div class="total-left">
+      <div class="total-label">ESTIMATIVA TOTAL DA SEMANA</div>
+      <div class="total-disclaimer">* Preços médios de supermercado</div>
+    </div>
+    <div class="total-value">R$&nbsp;${total.toFixed(2).replace('.', ',')}</div>
+  </div>
+
+  ${categoryRows}
+
+  <div class="footer">Gerado pelo Rotineira · Planejamento de marmitas com IA</div>
+</body>
+</html>`
+}
+
+const _CHECKED_KEY = (planId: string) => `shopping_checked_${planId}`
+
+function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; weekStart: string; planId: string }) {
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    AsyncStorage.getItem(_CHECKED_KEY(planId)).then((raw) => {
+      if (raw) setChecked(new Set(JSON.parse(raw) as string[]))
+    })
+  }, [planId])
+
+  function toggleItem(key: string) {
+    setChecked((prev) => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      AsyncStorage.setItem(_CHECKED_KEY(planId), JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  function clearChecked() {
+    setChecked(new Set())
+    AsyncStorage.removeItem(_CHECKED_KEY(planId))
+  }
+
   const byCategory = SHOPPING_CATEGORIES.reduce<Record<string, ShoppingItem[]>>((acc, cat) => {
     acc[cat] = items.filter((i) => i.category === cat)
     return acc
@@ -351,6 +687,33 @@ function ShoppingSection({ items }: { items: ShoppingItem[] }) {
 
   const otherItems = items.filter((i) => !SHOPPING_CATEGORIES.includes(i.category as any))
   const total = items.reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
+  const checkedCount = checked.size
+
+  async function handleShare() {
+    try {
+      const available = await Sharing.isAvailableAsync()
+      if (!available) {
+        Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.')
+        return
+      }
+      const html = buildShoppingHtml(items, weekStart)
+      // Solicita base64 para evitar leitura cross-sandbox no Android (Expo Go).
+      const { base64 } = await Print.printToFileAsync({ html, base64: true })
+      if (!base64) throw new Error('PDF vazio retornado pelo expo-print')
+      const dest = `${FileSystem.cacheDirectory}lista-compras.pdf`
+      await FileSystem.writeAsStringAsync(dest, base64, {
+        encoding: FileSystem.EncodingType.Base64,
+      })
+      await Sharing.shareAsync(dest, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Compartilhar lista de compras',
+        UTI: 'com.adobe.pdf',
+      })
+    } catch (err) {
+      console.error('[PDF Share]', err)
+      Alert.alert('Erro', 'Não foi possível gerar o PDF.')
+    }
+  }
 
   return (
     <View style={styles.section}>
@@ -360,35 +723,74 @@ function ShoppingSection({ items }: { items: ShoppingItem[] }) {
           R$ {total.toFixed(2).replace('.', ',')}
         </Text>
         <Text style={styles.totalDisclaimer}>* Baseado em preços médios de supermercado</Text>
+        <View style={styles.totalActions}>
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.7}>
+            <Feather name="share-2" size={14} color={colors.brand.primary} />
+            <Text style={styles.shareButtonText}>Compartilhar lista</Text>
+          </TouchableOpacity>
+          {checkedCount > 0 && (
+            <TouchableOpacity style={styles.clearButton} onPress={clearChecked} activeOpacity={0.7}>
+              <Feather name="x" size={13} color={colors.text.muted} />
+              <Text style={styles.clearButtonText}>Limpar marcados ({checkedCount})</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       {SHOPPING_CATEGORIES.map((cat) =>
         byCategory[cat].length > 0 ? (
-          <CategorySection key={cat} title={cat} items={byCategory[cat]} />
+          <CategorySection key={cat} title={cat} items={byCategory[cat]} checked={checked} onToggle={toggleItem} />
         ) : null
       )}
       {otherItems.length > 0 && (
-        <CategorySection title="OUTROS" items={otherItems} />
+        <CategorySection title="OUTROS" items={otherItems} checked={checked} onToggle={toggleItem} />
       )}
     </View>
   )
 }
 
-function CategorySection({ title, items }: { title: string; items: ShoppingItem[] }) {
+function CategorySection({
+  title,
+  items,
+  checked,
+  onToggle,
+}: {
+  title: string
+  items: ShoppingItem[]
+  checked: Set<string>
+  onToggle: (key: string) => void
+}) {
   return (
     <View style={styles.categorySection}>
       <Text style={styles.categoryTitle}>{title}</Text>
-      {items.map((item, i) => (
-        <View key={i} style={styles.shoppingItem}>
-          <View style={styles.shoppingDot} />
-          <Text style={styles.shoppingName}>{item.name}</Text>
-          <Text style={styles.shoppingQty}>{item.quantity}</Text>
-          {item.price_estimate_brl > 0 && (
-            <Text style={styles.shoppingPrice}>
-              R$ {item.price_estimate_brl.toFixed(2).replace('.', ',')}
+      {items.map((item, i) => {
+        const key = `${item.category}_${item.name}`
+        const isChecked = checked.has(key)
+        return (
+          <TouchableOpacity
+            key={i}
+            style={[styles.shoppingItem, isChecked && styles.shoppingItemChecked]}
+            onPress={() => onToggle(key)}
+            activeOpacity={0.7}
+          >
+            <Feather
+              name={isChecked ? 'check-square' : 'square'}
+              size={16}
+              color={isChecked ? colors.brand.primary : colors.border.medium}
+            />
+            <Text style={[styles.shoppingName, isChecked && styles.shoppingNameChecked]}>
+              {item.name}
             </Text>
-          )}
-        </View>
-      ))}
+            <Text style={[styles.shoppingQty, isChecked && styles.shoppingTextChecked]}>
+              {item.quantity}
+            </Text>
+            {item.price_estimate_brl > 0 && (
+              <Text style={[styles.shoppingPrice, isChecked && styles.shoppingTextChecked]}>
+                R$ {item.price_estimate_brl.toFixed(2).replace('.', ',')}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )
+      })}
     </View>
   )
 }
@@ -403,17 +805,63 @@ const styles = StyleSheet.create({
     padding: spacing['8'],
     gap: spacing['4'],
   },
-  loadingTitle: {
-    ...textStyles.h3,
-    color: colors.text.heading,
-    textAlign: 'center',
-    marginTop: spacing['3'],
+
+  // ── LoadingView animado ───────────────────────────────────────────────────
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing['6'],
+    gap: spacing['6'],
+  },
+  loadingLogo: {
+    width: 140,
+    height: 140,
+  },
+  stepsCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.lg,
+    padding: spacing['5'],
+    gap: spacing['4'],
+    width: '100%',
+    ...shadow.card,
+  },
+  loadingStepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+    minHeight: 24,
+  },
+  loadingStepIconCol: {
+    width: 20,
+    alignItems: 'center',
+  },
+  loadingStepDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border.medium,
+  },
+  loadingStepLabel: {
+    ...textStyles.body,
+    color: colors.text.body,
+    flex: 1,
+  },
+  loadingStepLabelActive: {
+    fontFamily: fontFamily.semiBold,
+    color: colors.brand.primary,
+  },
+  loadingStepLabelDone: {
+    color: colors.text.muted,
+    opacity: 0.5,
+  },
+  loadingStepLabelFuture: {
+    opacity: 0.35,
   },
   loadingSubtitle: {
-    ...textStyles.body,
+    ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
-    lineHeight: 22,
   },
   errorTitle: { ...textStyles.h3, color: colors.text.heading, textAlign: 'center' },
   errorMessage: {
@@ -537,6 +985,52 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
+  // Adaptar cardápio
+  adaptButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing['2'],
+    paddingVertical: spacing['3'],
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.brand.primary + '50',
+    backgroundColor: colors.brand.primary + '0A',
+    marginTop: spacing['2'],
+  },
+  adaptButtonText: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.brand.primary,
+  },
+  adaptHint: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    textAlign: 'center',
+    marginTop: -spacing['2'],
+  },
+
+  // Feedback modal
+  feedbackDesc: {
+    ...textStyles.body,
+    color: colors.text.muted,
+    lineHeight: 22,
+    marginBottom: spacing['4'],
+  },
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    borderRadius: radius.md,
+    padding: spacing['4'],
+    minHeight: 120,
+    ...textStyles.body,
+    color: colors.text.body,
+    backgroundColor: colors.background.card,
+  },
+  feedbackButton: {
+    marginTop: spacing['4'],
+  },
+
   categorySection: { gap: spacing['2'] },
   categoryTitle: {
     ...textStyles.caption,
@@ -552,12 +1046,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing['2'],
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
-  },
-  shoppingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand.secondary,
   },
   shoppingName: { ...textStyles.body, color: colors.text.body, flex: 1 },
   shoppingQty: {
@@ -662,6 +1150,53 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
+  },
+  totalActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing['2'],
+    marginTop: spacing['2'],
+    justifyContent: 'center',
+  },
+  shareButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['2'],
+    paddingHorizontal: spacing['4'],
+    paddingVertical: spacing['2'],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.brand.primary + '40',
+    backgroundColor: colors.background.screen,
+  },
+  shareButtonText: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.brand.primary,
+  },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['1'],
+    paddingHorizontal: spacing['3'],
+    paddingVertical: spacing['2'],
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border.medium,
+    backgroundColor: colors.background.screen,
+  },
+  clearButtonText: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+  },
+  shoppingItemChecked: {
+    opacity: 0.45,
+  },
+  shoppingNameChecked: {
+    textDecorationLine: 'line-through',
+  },
+  shoppingTextChecked: {
+    textDecorationLine: 'line-through',
   },
 
   // ── Guia de Montagem ─────────────────────────────────────────────────────

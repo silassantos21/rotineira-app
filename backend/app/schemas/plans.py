@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Dict, Optional
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 
 
@@ -41,6 +41,10 @@ class WeeklyPlanCreate(BaseModel):
     week_start: date
 
 
+class AdaptPlanRequest(BaseModel):
+    feedback: str
+
+
 class WeeklyPlanResponse(BaseModel):
     id: str
     user_id: str
@@ -51,3 +55,5 @@ class WeeklyPlanResponse(BaseModel):
     shopping_list: Optional[List[ShoppingItem]] = None
     assembly_guide: Optional[dict] = None
     error_message: Optional[str] = None
+    parent_plan_id: Optional[str] = None
+    created_at: Optional[datetime] = None

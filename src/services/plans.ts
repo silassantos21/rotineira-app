@@ -27,3 +27,10 @@ export async function getPlan(planId: string): Promise<WeeklyPlan> {
 export async function listPlans(): Promise<WeeklyPlan[]> {
   return apiFetch<WeeklyPlan[]>('/api/v1/plans')
 }
+
+export async function adaptPlan(planId: string, feedback: string): Promise<WeeklyPlan> {
+  return apiFetch<WeeklyPlan>(`/api/v1/plans/${planId}/adapt`, {
+    method: 'POST',
+    body: JSON.stringify({ feedback }),
+  })
+}

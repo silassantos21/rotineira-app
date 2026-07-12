@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Feather } from '@expo/vector-icons'
+import { Feather, MaterialCommunityIcons as MCI } from '@expo/vector-icons'
 import { colors } from '../../src/theme/colors'
 import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
@@ -31,11 +31,11 @@ export default function HomeScreen() {
       router.push(`/plan?id=${plan.id}`)
     },
     onError: (err: Error) => {
-      const isRateLimit = err.message.includes('Limite semanal')
-      Alert.alert(
-        isRateLimit ? 'Limite atingido' : 'Erro',
-        err.message ?? 'Não foi possível iniciar a geração. Verifique sua conexão.',
-      )
+      if (err.message.includes('Limite semanal')) {
+        router.push('/paywall')
+        return
+      }
+      Alert.alert('Erro', err.message ?? 'Não foi possível iniciar a geração. Verifique sua conexão.')
     },
   })
 
@@ -57,7 +57,7 @@ export default function HomeScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.cardIconWrap}>
-              <Feather name="users" size={20} color={colors.brand.primary} />
+              <MCI name="account-group-outline" size={22} color={colors.brand.primary} />
             </View>
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardTitle}>Perfil Familiar</Text>
@@ -83,13 +83,16 @@ export default function HomeScreen() {
           </View>
 
           {hasFamily && (
-            <View style={styles.memberPills}>
-              {familyProfile!.members.map((m) => (
-                <View key={m.id} style={styles.memberPill}>
-                  <Text style={styles.memberPillText}>{m.name.split(' ')[0]}</Text>
-                </View>
-              ))}
-            </View>
+            <>
+              <View style={styles.memberPills}>
+                {familyProfile!.members.map((m) => (
+                  <View key={m.id} style={styles.memberPill}>
+                    <Text style={styles.memberPillText}>{m.name.split(' ')[0]}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.memberMotivation}>Tudo pronto! Gere o cardápio da semana.</Text>
+            </>
           )}
 
           {!hasFamily && !isLoading && (
@@ -106,7 +109,7 @@ export default function HomeScreen() {
         <TouchableOpacity style={styles.card} onPress={() => router.push('/history')} activeOpacity={0.7}>
           <View style={styles.cardHeader}>
             <View style={styles.cardIconWrap}>
-              <Feather name="clock" size={20} color={colors.brand.primary} />
+              <MCI name="history" size={22} color={colors.brand.primary} />
             </View>
             <View style={styles.cardHeaderText}>
               <Text style={styles.cardTitle}>Histórico</Text>
@@ -131,6 +134,27 @@ export default function HomeScreen() {
             </Text>
           )}
         </View>
+
+        {/* Como funciona — visível apenas para quem ainda não configurou a família */}
+        {!hasFamily && !isLoading && (
+          <View style={styles.howCard}>
+            <Text style={styles.howTitle}>Como funciona</Text>
+            <View style={styles.howRow}>
+              {([
+                { mciIcon: 'account-group-outline', label: 'Configure\nsua família' },
+                { mciIcon: 'lightning-bolt-outline', label: 'Gere\ncom IA' },
+                { mciIcon: 'bowl-mix-outline',       label: 'Marmitas\nprontas!' },
+              ] as const).map((step, i) => (
+                <View key={i} style={styles.howStep}>
+                  <View style={styles.howIconWrap}>
+                    <MCI name={step.mciIcon} size={24} color={colors.brand.primary} />
+                  </View>
+                  <Text style={styles.howStepText}>{step.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
 
         <View style={styles.spacer} />
 
@@ -202,6 +226,53 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
+  },
+
+  memberMotivation: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    marginTop: 2,
+  },
+
+  howCard: {
+    backgroundColor: colors.background.card,
+    borderRadius: radius.lg,
+    padding: spacing['4'],
+    gap: spacing['4'],
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.border.medium,
+  },
+  howTitle: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.text.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    textAlign: 'center',
+  },
+  howRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  howStep: {
+    alignItems: 'center',
+    gap: spacing['2'],
+    flex: 1,
+  },
+  howIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.brand.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  howStepText: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    textAlign: 'center',
+    lineHeight: 16,
   },
 
   spacer: { flex: 1 },

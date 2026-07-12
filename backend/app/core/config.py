@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     MOCK_AI: bool = False
     SENTRY_DSN: str = ""
     ALLOWED_ORIGINS: List[str] = ["*"]
+    REVENUECAT_WEBHOOK_SECRET: str = ""
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 
 settings = Settings()
