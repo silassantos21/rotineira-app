@@ -9,7 +9,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { Link } from 'expo-router'
+import { Link, useRouter } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { colors } from '../../src/theme/colors'
 import { textStyles, fontFamily } from '../../src/theme/typography'
@@ -40,6 +40,7 @@ function getPasswordStrength(pwd: string): PasswordStrength {
 }
 
 export default function RegisterScreen() {
+  const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -71,13 +72,21 @@ export default function RegisterScreen() {
     if (!validate()) return
     setLoading(true)
     setSubmitError(null)
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: { data: { full_name: fullName.trim() } },
     })
-    if (error) setSubmitError(traduzeErro(error.message))
-    else setSuccess(true)
+    if (error) {
+      setSubmitError(traduzeErro(error.message))
+    } else if (data.session) {
+      // TODO: confirmação por e-mail desativada temporariamente para testes.
+      // Antes do lançamento: Supabase → Authentication → Providers → Email → ativar "Confirm email"
+      // e remover este bloco (deixar apenas o else abaixo).
+      router.replace('/(app)')
+    } else {
+      setSuccess(true)
+    }
     setLoading(false)
   }
 
