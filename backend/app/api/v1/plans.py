@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from supabase import create_client
 from app.core.security import get_current_user
 from app.core.config import settings
 from app.schemas.plans import WeeklyPlanCreate, WeeklyPlanResponse, AdaptPlanRequest
+from app.workers.background_tasks import run_generate_weekly_plan, run_adapt_weekly_plan
 
 router = APIRouter()
 
@@ -59,6 +60,7 @@ def _check_and_increment_rate_limit(sb, user_id: str) -> None:
 @router.post("/generate", response_model=WeeklyPlanResponse, status_code=202)
 async def generate_plan(
     body: WeeklyPlanCreate,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["sub"]
@@ -75,8 +77,7 @@ async def generate_plan(
 
     plan = result.data[0]
 
-    from app.workers.tasks import generate_weekly_plan
-    generate_weekly_plan.delay(plan["id"], user_id)
+    background_tasks.add_task(run_generate_weekly_plan, plan["id"], user_id)
 
     return _plan_response(plan)
 
@@ -85,6 +86,7 @@ async def generate_plan(
 async def adapt_plan(
     plan_id: str,
     body: AdaptPlanRequest,
+    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
     user_id = current_user["sub"]
@@ -112,8 +114,7 @@ async def adapt_plan(
 
     new_plan = result.data[0]
 
-    from app.workers.tasks import adapt_weekly_plan
-    adapt_weekly_plan.delay(new_plan["id"], plan_id, user_id, body.feedback)
+    background_tasks.add_task(run_adapt_weekly_plan, new_plan["id"], plan_id, user_id, body.feedback)
 
     return _plan_response(new_plan)
 
