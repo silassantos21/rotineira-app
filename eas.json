@@ -9,7 +9,12 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://pgetrlktchwfdsyxlpnm.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnZXRybGt0Y2h3ZmRzeXhscG5tIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NzU1MzMsImV4cCI6MjA5OTQ1MTUzM30.LV9Z3CrYfUXqznAkIM1gAGd2rHhob76sAZG4lIfl_kE",
+        "EXPO_PUBLIC_API_URL": "https://rotineira-app-production.up.railway.app"
+      }
     },
     "production": {
       "autoIncrement": true
