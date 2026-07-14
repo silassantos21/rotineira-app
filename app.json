@@ -52,8 +52,7 @@
         }
       ],
       "expo-asset",
-      "expo-sharing",
-      "@react-native-voice/voice"
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
