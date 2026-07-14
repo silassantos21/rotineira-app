@@ -31,8 +31,17 @@
       "expo-font",
       "expo-apple-authentication",
       [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permitir que o Rotineira use o microfone para ditado de texto.",
+          "speechRecognitionPermission": "Permitir que o Rotineira use o reconhecimento de voz para preencher campos de texto."
+        }
+      ],
+      [
         "expo-notifications",
-        { "color": "#556B2F" }
+        {
+          "color": "#556B2F"
+        }
       ],
       [
         "expo-splash-screen",
@@ -43,7 +52,8 @@
         }
       ],
       "expo-asset",
-      "expo-sharing"
+      "expo-sharing",
+      "@react-native-voice/voice"
     ],
     "experiments": {
       "typedRoutes": true

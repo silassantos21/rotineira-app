@@ -25,6 +25,7 @@ import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { Button } from '../../src/components/ui/Button'
 import { getPlan, adaptPlan } from '../../src/services/plans'
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition'
 import type { WeeklyPlan, DailyMeal, ShoppingItem, MealPortion } from '../../src/types/plans'
 import { SHOPPING_CATEGORIES } from '../../src/types/plans'
 
@@ -365,6 +366,30 @@ function FeedbackModal({
   onSubmit: (feedback: string) => void
 }) {
   const [text, setText] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+
+  useSpeechRecognitionEvent('start', () => setIsRecording(true))
+  useSpeechRecognitionEvent('end', () => setIsRecording(false))
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript ?? ''
+    if (transcript && event.isFinal) {
+      setText((prev) => (prev ? prev + ' ' + transcript : transcript))
+    }
+  })
+  useSpeechRecognitionEvent('error', () => setIsRecording(false))
+
+  async function handleMicPress() {
+    if (isRecording) {
+      ExpoSpeechRecognitionModule.stop()
+      return
+    }
+    const { granted } = await ExpoSpeechRecognitionModule.requestPermissionsAsync()
+    if (!granted) {
+      Alert.alert('Permissão necessária', 'Permita o acesso ao microfone para usar o ditado.')
+      return
+    }
+    ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', interimResults: false, continuous: false })
+  }
 
   function handleSubmit() {
     const trimmed = text.trim()
@@ -372,6 +397,7 @@ function FeedbackModal({
   }
 
   function handleClose() {
+    if (isRecording) ExpoSpeechRecognitionModule.stop()
     setText('')
     onClose()
   }
@@ -392,17 +418,35 @@ function FeedbackModal({
           <Text style={styles.feedbackDesc}>
             Descreva o que quer mudar. Pode ser troca de ingrediente, dia específico, restrição nova ou qualquer ajuste — a IA adapta apenas o necessário.
           </Text>
-          <TextInput
-            style={styles.feedbackInput}
-            value={text}
-            onChangeText={setText}
-            placeholder="Ex: Trocar frango por peixe na quarta. Sem glúten em toda a semana. Prefiro arroz integral..."
-            placeholderTextColor={colors.text.muted}
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-            editable={!isLoading}
-          />
+          <View style={styles.feedbackInputRow}>
+            <TextInput
+              style={[styles.feedbackInput, styles.feedbackInputFlex]}
+              value={text}
+              onChangeText={setText}
+              placeholder="Ex: Trocar frango por peixe na quarta. Sem glúten em toda a semana. Prefiro arroz integral..."
+              placeholderTextColor={colors.text.muted}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+              editable={!isLoading}
+            />
+            <TouchableOpacity
+              style={[styles.micButton, isRecording && styles.micButtonActive]}
+              onPress={handleMicPress}
+              activeOpacity={0.7}
+              disabled={isLoading}
+            >
+              <Feather
+                name="mic"
+                size={20}
+                color={isRecording ? colors.text.inverse : colors.brand.primary}
+              />
+              {isRecording && <ActivityIndicator size="small" color={colors.text.inverse} style={{ marginTop: 4 }} />}
+            </TouchableOpacity>
+          </View>
+          {isRecording && (
+            <Text style={styles.recordingHint}>Ouvindo... Toque no microfone para parar.</Text>
+          )}
           <View style={styles.feedbackButton}>
             <Button
               label={isLoading ? 'Gerando adaptação...' : 'Gerar adaptação'}
@@ -1021,6 +1065,14 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: spacing['4'],
   },
+  feedbackInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing['2'],
+  },
+  feedbackInputFlex: {
+    flex: 1,
+  },
   feedbackInput: {
     borderWidth: 1,
     borderColor: colors.border.medium,
@@ -1030,6 +1082,26 @@ const styles = StyleSheet.create({
     ...textStyles.body,
     color: colors.text.body,
     backgroundColor: colors.background.card,
+  },
+  micButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background.card,
+  },
+  micButtonActive: {
+    backgroundColor: colors.brand.primary,
+    borderColor: colors.brand.primary,
+  },
+  recordingHint: {
+    ...textStyles.caption,
+    color: colors.brand.primary,
+    marginTop: spacing['2'],
+    textAlign: 'center',
   },
   feedbackButton: {
     marginTop: spacing['4'],
