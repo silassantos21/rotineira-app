@@ -731,7 +731,11 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
   }, {} as Record<string, ShoppingItem[]>)
 
   const otherItems = items.filter((i) => !SHOPPING_CATEGORIES.includes(i.category as any))
+  const _itemKey = (i: ShoppingItem) => `${i.category}_${i.name}`
   const total = items.reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
+  const remainingTotal = items
+    .filter((i) => !checked.has(_itemKey(i)))
+    .reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
   const checkedCount = checked.size
 
   async function handleShare() {
@@ -741,8 +745,7 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
         Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.')
         return
       }
-      const itemKey = (i: ShoppingItem) => `${i.category}_${i.name}`
-      const uncheckedItems = items.filter((i) => !checked.has(itemKey(i)))
+      const uncheckedItems = items.filter((i) => !checked.has(_itemKey(i)))
       const skippedCount = items.length - uncheckedItems.length
       const html = buildShoppingHtml(uncheckedItems, weekStart, skippedCount)
       // Solicita base64 para evitar leitura cross-sandbox no Android (Expo Go).
@@ -766,10 +769,17 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
   return (
     <View style={styles.section}>
       <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Estimativa total da semana</Text>
-        <Text style={styles.totalValue}>
-          R$ {total.toFixed(2).replace('.', ',')}
+        <Text style={styles.totalLabel}>
+          {checkedCount > 0 ? 'Falta comprar' : 'Estimativa total da semana'}
         </Text>
+        <Text style={styles.totalValue}>
+          R$ {(checkedCount > 0 ? remainingTotal : total).toFixed(2).replace('.', ',')}
+        </Text>
+        {checkedCount > 0 && (
+          <Text style={styles.totalOriginal}>
+            Total original: R$ {total.toFixed(2).replace('.', ',')}
+          </Text>
+        )}
         <Text style={styles.totalDisclaimer}>* Baseado em preços médios de supermercado</Text>
         <View style={styles.totalActions}>
           <TouchableOpacity style={styles.shareButton} onPress={handleShare} activeOpacity={0.7}>
@@ -1221,6 +1231,12 @@ const styles = StyleSheet.create({
     ...textStyles.h2,
     fontFamily: fontFamily.semiBold,
     color: colors.brand.primary,
+  },
+  totalOriginal: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    textDecorationLine: 'line-through',
+    textAlign: 'center',
   },
   totalDisclaimer: {
     ...textStyles.caption,
