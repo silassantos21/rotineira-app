@@ -516,7 +516,7 @@ function buildWeekRange(weekStart: string): string {
   return `${fmt(monday)} a ${fmt(sunday)}`
 }
 
-function buildShoppingHtml(items: ShoppingItem[], weekStart: string): string {
+function buildShoppingHtml(items: ShoppingItem[], weekStart: string, skippedCount = 0): string {
   const range = buildWeekRange(weekStart)
   const total = items.reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
 
@@ -644,6 +644,7 @@ function buildShoppingHtml(items: ShoppingItem[], weekStart: string): string {
     <div class="total-left">
       <div class="total-label">ESTIMATIVA TOTAL DA SEMANA</div>
       <div class="total-disclaimer">* Preços médios de supermercado</div>
+      ${skippedCount > 0 ? `<div class="total-disclaimer" style="margin-top:2px;color:#9BA38D;">&#10003; ${skippedCount} ${skippedCount === 1 ? 'item já marcado' : 'itens já marcados'} não incluídos</div>` : ''}
     </div>
     <div class="total-value">R$&nbsp;${total.toFixed(2).replace('.', ',')}</div>
   </div>
@@ -696,7 +697,10 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
         Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.')
         return
       }
-      const html = buildShoppingHtml(items, weekStart)
+      const itemKey = (i: ShoppingItem) => `${i.category}_${i.name}`
+      const uncheckedItems = items.filter((i) => !checked.has(itemKey(i)))
+      const skippedCount = items.length - uncheckedItems.length
+      const html = buildShoppingHtml(uncheckedItems, weekStart, skippedCount)
       // Solicita base64 para evitar leitura cross-sandbox no Android (Expo Go).
       const { base64 } = await Print.printToFileAsync({ html, base64: true })
       if (!base64) throw new Error('PDF vazio retornado pelo expo-print')

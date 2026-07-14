@@ -8,6 +8,8 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -103,13 +105,17 @@ export default function FamilyScreen() {
           <ActivityIndicator color={colors.brand.primary} size="large" />
         </View>
       ) : (
-        <>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <ScrollView
             contentContainerStyle={[
               styles.scroll,
               members.length === 0 && styles.scrollCenter,
             ]}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {members.length === 0 ? (
               <View style={styles.empty}>
@@ -128,20 +134,6 @@ export default function FamilyScreen() {
                 <Text style={styles.countLabel}>
                   {members.length} {members.length === 1 ? 'membro' : 'membros'}
                 </Text>
-                {members.map((member, i) => (
-                  <MemberCard
-                    key={member.id}
-                    member={member}
-                    onEdit={() => handleEdit(i)}
-                    onDelete={() => handleDelete(i)}
-                  />
-                ))}
-                <Button
-                  label="Adicionar membro"
-                  variant="outline"
-                  icon={<Feather name="plus" size={18} color={colors.brand.primary} />}
-                  onPress={handleAdd}
-                />
 
                 <View style={styles.budgetSection}>
                   <Text style={styles.budgetLabel}>Orçamento máximo semanal (opcional)</Text>
@@ -163,6 +155,21 @@ export default function FamilyScreen() {
                     />
                   </View>
                 </View>
+
+                {members.map((member, i) => (
+                  <MemberCard
+                    key={member.id}
+                    member={member}
+                    onEdit={() => handleEdit(i)}
+                    onDelete={() => handleDelete(i)}
+                  />
+                ))}
+                <Button
+                  label="Adicionar membro"
+                  variant="outline"
+                  icon={<Feather name="plus" size={18} color={colors.brand.primary} />}
+                  onPress={handleAdd}
+                />
               </>
             )}
           </ScrollView>
@@ -176,7 +183,7 @@ export default function FamilyScreen() {
               />
             </View>
           )}
-        </>
+        </KeyboardAvoidingView>
       )}
     </SafeAreaView>
   )
