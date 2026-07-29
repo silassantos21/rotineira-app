@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Linking } from 'react-native'
 import { Slot } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import {
@@ -13,6 +14,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { supabase } from '../src/lib/supabase'
 import { useAuthStore } from '../src/store/auth'
 import '../global.css'
+
+async function handleAuthDeepLink(url: string) {
+  try {
+    const parsed = new URL(url)
+    const token_hash = parsed.searchParams.get('token_hash')
+    const type = parsed.searchParams.get('type')
+    if (token_hash && type) {
+      await supabase.auth.verifyOtp({ token_hash, type: type as any })
+    }
+  } catch {}
+}
 
 SplashScreen.preventAutoHideAsync()
 
@@ -44,7 +56,14 @@ export default function RootLayout() {
       setSession(session)
     })
 
-    return () => subscription.unsubscribe()
+    // Captura deep link de confirmação de e-mail (rotineira://?token_hash=...&type=signup)
+    Linking.getInitialURL().then((url) => { if (url) handleAuthDeepLink(url) })
+    const linkSub = Linking.addEventListener('url', ({ url }) => handleAuthDeepLink(url))
+
+    return () => {
+      subscription.unsubscribe()
+      linkSub.remove()
+    }
   }, [])
 
   useEffect(() => {

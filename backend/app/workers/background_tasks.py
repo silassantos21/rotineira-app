@@ -31,7 +31,13 @@ def _send_push(push_token: str, plan_id: str) -> None:
         pass
 
 
-def run_generate_weekly_plan(plan_id: str, user_id: str) -> None:
+def run_generate_weekly_plan(
+    plan_id: str,
+    user_id: str,
+    include_breakfast: bool = False,
+    include_dinner: bool = False,
+    include_dessert: bool = False,
+) -> None:
     sb = _get_supabase()
 
     try:
@@ -41,13 +47,22 @@ def run_generate_weekly_plan(plan_id: str, user_id: str) -> None:
         if not profile_res.data:
             raise ValueError("Perfil familiar não encontrado para o usuário")
 
+        plan_res = sb.table("weekly_plans").select("period").eq("id", plan_id).maybe_single().execute()
+        period = (plan_res.data or {}).get("period", "weekly")
+
         from app.agents.cardapio_generator import CardapioGeneratorAgent
         agent = CardapioGeneratorAgent(
             gemini_api_key=settings.GEMINI_API_KEY,
             openai_api_key=settings.OPENAI_API_KEY,
             mock=settings.MOCK_AI,
         )
-        result = agent.generate(profile_res.data)
+        result = agent.generate(
+            profile_res.data,
+            period=period,
+            include_breakfast=include_breakfast,
+            include_dinner=include_dinner,
+            include_dessert=include_dessert,
+        )
 
         sb.table("weekly_plans").update({
             "status": "done",

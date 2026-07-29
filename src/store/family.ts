@@ -37,6 +37,7 @@ export const useFamilyStore = create<FamilyDraftStore>((set, get) => ({
         appetite: 'moderate',
         restrictions: [],
         objectives: [],
+        calorie_limit_kcal: null,
       },
       editingIndex: null,
     })

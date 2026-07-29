@@ -1,7 +1,7 @@
 import json
 import time
 from pydantic import BaseModel, ValidationError
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 _TRANSIENT_CODES = ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded")
 
@@ -16,7 +16,12 @@ class MealPortionAI(BaseModel):
 class DailyMealAI(BaseModel):
     day: str
     lunch: str
+    breakfast: Optional[str] = None
+    member_lunches: Dict[str, str] = {}
     portions: Dict[str, MealPortionAI]
+    dinner: Optional[str] = None
+    dinner_portions: Optional[Dict[str, MealPortionAI]] = None
+    dessert: Optional[str] = None
     prep_time_min: int
     cook_time_min: int
     utensils: List[str]
@@ -35,45 +40,73 @@ class CardapioResult(BaseModel):
     shopping_list: List[ShoppingItemAI]
 
 
-_SCHEMA_EXAMPLE = """{
-  "meals": [
-    {
-      "day": "Segunda-feira",
-      "lunch": "Nome do prato",
-      "portions": {
-        "NomeDoMembro": {
-          "protein_g": 200,
-          "carb_g": 150,
-          "vegetable_g": 100,
-          "total_g": 450
-        }
-      },
-      "prep_time_min": 15,
-      "cook_time_min": 30,
-      "utensils": ["Panela grande", "Frigideira", "Tábua de corte"],
-      "instructions": [
-        "Passo 1: descrição clara e objetiva",
-        "Passo 2: descrição clara e objetiva"
-      ]
-    }
-  ],
-  "shopping_list": [
-    {
-      "name": "Nome do produto",
-      "quantity": "500g",
-      "category": "AÇOUGUE",
-      "price_estimate_brl": 25.90
-    }
-  ]
-}"""
+def _build_schema_example(
+    include_breakfast: bool = False,
+    include_dinner: bool = False,
+    include_dessert: bool = False,
+) -> str:
+    """Constrói o exemplo de schema JSON enviado ao LLM, ativando campos opcionais conforme flags."""
+    meal_fields: List[str] = [
+        '      "day": "Segunda-feira"',
+        '      "lunch": "Nome do prato principal (para a maioria da família)"',
+    ]
+    if include_breakfast:
+        meal_fields.append('      "breakfast": "Tapioca com queijo e ovo"')
+    meal_fields += [
+        '      "member_lunches": {"NomeDoMembro": "Prato alternativo quando restrição impede o principal"}',
+        '      "portions": {"NomeDoMembro": {"protein_g": 200, "carb_g": 150, "vegetable_g": 100, "total_g": 450}}',
+    ]
+    if include_dinner:
+        meal_fields.append('      "dinner": "Sopa de legumes com torrada integral"')
+        meal_fields.append(
+            '      "dinner_portions": {"NomeDoMembro": {"protein_g": 100, "carb_g": 80, "vegetable_g": 60, "total_g": 240}}'
+        )
+    if include_dessert:
+        meal_fields.append('      "dessert": "Pudim de leite condensado"')
+    meal_fields += [
+        '      "prep_time_min": 15',
+        '      "cook_time_min": 30',
+        '      "utensils": ["Panela grande", "Frigideira", "Tábua de corte"]',
+        '      "instructions": ["Passo 1: descrição clara e objetiva", "Passo 2: descrição clara e objetiva"]',
+    ]
+
+    meal_body = ",\n".join(meal_fields)
+
+    return (
+        "{\n"
+        '  "meals": [\n'
+        "    {\n"
+        f"{meal_body}\n"
+        "    }\n"
+        "  ],\n"
+        '  "shopping_list": [\n'
+        "    {\n"
+        '      "name": "Nome do produto",\n'
+        '      "quantity": "500g",\n'
+        '      "category": "AÇOUGUE",\n'
+        '      "price_estimate_brl": 25.90\n'
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+
+
+_PERIOD_INSTRUCTIONS = {
+    "weekly":   "7 dias (Segunda-feira a Domingo)",
+    "biweekly": "14 dias (Semana 1: Seg-1 a Dom-1 e Semana 2: Seg-2 a Dom-2 — use sufixo '-1' e '-2' nos nomes dos dias, ex: 'Segunda-1', 'Segunda-2')",
+    "monthly":  "30 dias (4 semanas — use o formato 'Seg-S1', 'Ter-S1' ... 'Dom-S4' para diferenciar as semanas)",
+}
 
 _PROMPT_TEMPLATE = (
-    "Você é um nutricionista brasileiro especializado em Meal Prep (preparo de marmitas semanais para famílias). "
+    "Você é um nutricionista brasileiro especializado em Meal Prep (preparo de marmitas para famílias). "
     "Seu objetivo é criar um plano alimentar prático, saudável e econômico.\n\n"
-    "Receba o perfil familiar abaixo e gere um cardápio semanal COMPLETO (7 dias: Segunda a Domingo) "
-    "focado em refeições que possam ser preparadas em um único dia e congeladas como marmitas.\n\n"
+    "Receba o perfil familiar abaixo e gere um cardápio COMPLETO de {period_instruction} "
+    "focado em refeições que possam ser preparadas e congeladas como marmitas.\n\n"
     "Perfil familiar: {perfil_familia_json}\n\n"
     "{budget_rule}"
+    "{breakfast_rule}"
+    "{dinner_rule}"
+    "{dessert_rule}"
     "REGRAS:\n"
     "1) Calcule as porções de cada membro com base no nível de apetite:\n"
     "   - low (Pouco)         = 50%%  da porção base adulta\n"
@@ -82,7 +115,10 @@ _PROMPT_TEMPLATE = (
     "   Porção base adulta: proteína 200g, carboidrato 200g, vegetal 150g.\n"
     "   Para crianças: use 60%% das porções do adulto como base antes do multiplicador de apetite.\n"
     "2) Priorize refeições com 3-5 ingredientes simples, disponíveis em supermercados brasileiros.\n"
-    "3) Respeite ABSOLUTAMENTE todas as restrições alimentares e objetivos listados para cada membro.\n"
+    "3) Respeite ABSOLUTAMENTE todas as restrições alimentares e objetivos listados para cada membro. "
+    "Quando as restrições de um membro tornarem impossível compartilhar o prato principal com os demais, "
+    "atribua um prato alternativo específico para esse membro em 'member_lunches' (mapa nome→prato). "
+    "Omita 'member_lunches' (ou deixe vazio) quando todos podem comer o mesmo prato principal.\n"
     "4) Varie as proteínas ao longo da semana (não repita a mesma proteína mais de 2 dias seguidos).\n"
     "5) Para cada refeição, inclua: tempo de preparo (prep_time_min), tempo de cozimento (cook_time_min), "
     "lista de utensílios necessários (utensils) e instruções de preparo passo a passo (instructions) "
@@ -91,25 +127,68 @@ _PROMPT_TEMPLATE = (
     "organize por categoria: AÇOUGUE, HORTIFRUTI, MERCEARIA, LATICÍNIOS, TEMPEROS, "
     "e inclua uma estimativa de preço em reais (BRL) para cada item com base em preços médios "
     "de supermercado brasileiro em 2025.\n"
-    "7) Retorne EXCLUSIVAMENTE JSON válido no schema abaixo, sem nenhum texto adicional.\n\n"
+    "7) Se um membro tiver 'calorie_limit_kcal' definido, dimensione as porções desse membro para que "
+    "o total calórico não ultrapasse o limite. Estimativa: proteína=4kcal/g, carboidrato=4kcal/g, "
+    "vegetal=1kcal/g. O campo 'calorie_limit_kcal' é a meta diária total "
+    "(almoço ~35%%, janta ~25%% das calorias diárias quando aplicável).\n"
+    "8) Retorne EXCLUSIVAMENTE JSON válido no schema abaixo, sem nenhum texto adicional.\n\n"
     "Schema obrigatório: {schema_json}"
 )
 
 
-def _build_prompt(family_profile: dict) -> str:
+def _build_prompt(
+    family_profile: dict,
+    period: str = "weekly",
+    include_breakfast: bool = False,
+    include_dinner: bool = False,
+    include_dessert: bool = False,
+) -> str:
     budget = family_profile.get("weekly_budget_brl")
     if budget is not None:
+        multiplier = {"weekly": 1, "biweekly": 2, "monthly": 4}.get(period, 1)
+        budget_total = budget * multiplier
         budget_rule = (
-            f"ORÇAMENTO MÁXIMO SEMANAL: R$ {budget:.2f}. "
+            f"ORÇAMENTO MÁXIMO PARA O PERÍODO: R$ {budget_total:.2f} "
+            f"({multiplier}x o orçamento semanal de R$ {budget:.2f}). "
             "Escolha ingredientes e proteínas que mantenham o total estimado da lista de compras "
             "abaixo desse valor. Prefira cortes e produtos mais acessíveis quando necessário.\n\n"
         )
     else:
         budget_rule = ""
+
+    breakfast_rule = (
+        "CAFÉ DA MANHÃ (Premium): Para cada dia, inclua um campo 'breakfast' no JSON "
+        "com uma sugestão simples e prática de café da manhã brasileiro. "
+        "Varie ao longo dos dias e respeite as restrições alimentares de todos os membros. "
+        "Exemplos: 'Tapioca com queijo e ovo', 'Aveia com banana e mel', "
+        "'Pão integral com pasta de amendoim'.\n\n"
+    ) if include_breakfast else ""
+
+    dinner_rule = (
+        "JANTA (Premium): Para cada dia, inclua campos 'dinner' (nome do prato da janta) e "
+        "'dinner_portions' (mapa nome→porção no mesmo formato de 'portions'). "
+        "A janta deve ser mais leve que o almoço — use ~25% das calorias diárias. "
+        "Aplique as mesmas regras de apetite e restrições alimentares dos membros. "
+        "Calcule protein_g, carb_g, vegetable_g e total_g por membro para a janta.\n\n"
+    ) if include_dinner else ""
+
+    dessert_rule = (
+        "SOBREMESA (Premium): Para cada dia, inclua um campo 'dessert' com uma sugestão simples "
+        "de sobremesa brasileira. Deve ser leve, variada ao longo dos dias e respeitar as "
+        "restrições alimentares de todos os membros. "
+        "Exemplos: 'Mousse de maracujá', 'Frutas com mel', 'Pudim de leite condensado'.\n\n"
+    ) if include_dessert else ""
+
+    schema_json = _build_schema_example(include_breakfast, include_dinner, include_dessert)
+
     return _PROMPT_TEMPLATE.format(
+        period_instruction=_PERIOD_INSTRUCTIONS.get(period, _PERIOD_INSTRUCTIONS["weekly"]),
         perfil_familia_json=json.dumps(family_profile, ensure_ascii=False),
         budget_rule=budget_rule,
-        schema_json=_SCHEMA_EXAMPLE,
+        breakfast_rule=breakfast_rule,
+        dinner_rule=dinner_rule,
+        dessert_rule=dessert_rule,
+        schema_json=schema_json,
     )
 
 
@@ -174,21 +253,37 @@ class _MockProvider:
     ]
 
     def call(self, prompt: str) -> str:
-        return json.dumps({
-            "meals": [
-                {
-                    "day": dia,
-                    "lunch": prato,
-                    "portions": {
-                        "Membro 1": {"protein_g": 200, "carb_g": 150, "vegetable_g": 100, "total_g": 450}
-                    },
-                    "prep_time_min": 15,
-                    "cook_time_min": 30,
-                    "utensils": self._MOCK_UTENSILS,
-                    "instructions": self._MOCK_INSTRUCTIONS,
+        include_breakfast = "'breakfast'" in prompt
+        include_dinner = "'dinner'" in prompt
+        include_dessert = "'dessert'" in prompt
+
+        meals = []
+        for dia, prato in self._MOCK_DAYS:
+            meal: dict = {
+                "day": dia,
+                "lunch": prato,
+                "member_lunches": {},
+                "portions": {
+                    "Membro 1": {"protein_g": 200, "carb_g": 150, "vegetable_g": 100, "total_g": 450}
+                },
+                "prep_time_min": 15,
+                "cook_time_min": 30,
+                "utensils": self._MOCK_UTENSILS,
+                "instructions": self._MOCK_INSTRUCTIONS,
+            }
+            if include_breakfast:
+                meal["breakfast"] = "Tapioca com queijo e ovo"
+            if include_dinner:
+                meal["dinner"] = "Sopa de legumes com torrada"
+                meal["dinner_portions"] = {
+                    "Membro 1": {"protein_g": 100, "carb_g": 80, "vegetable_g": 60, "total_g": 240}
                 }
-                for dia, prato in self._MOCK_DAYS
-            ],
+            if include_dessert:
+                meal["dessert"] = "Frutas com mel"
+            meals.append(meal)
+
+        return json.dumps({
+            "meals": meals,
             "shopping_list": [
                 {"name": "Peito de frango", "quantity": "2kg", "category": "AÇOUGUE", "price_estimate_brl": 32.90},
                 {"name": "Carne moída", "quantity": "500g", "category": "AÇOUGUE", "price_estimate_brl": 18.50},
@@ -216,8 +311,21 @@ class CardapioGeneratorAgent:
             if not self._providers:
                 raise ValueError("Nenhuma chave de API configurada (GEMINI_API_KEY ou OPENAI_API_KEY)")
 
-    def generate(self, family_profile: dict) -> CardapioResult:
-        prompt = _build_prompt(family_profile)
+    def generate(
+        self,
+        family_profile: dict,
+        period: str = "weekly",
+        include_breakfast: bool = False,
+        include_dinner: bool = False,
+        include_dessert: bool = False,
+    ) -> CardapioResult:
+        prompt = _build_prompt(
+            family_profile,
+            period,
+            include_breakfast=include_breakfast,
+            include_dinner=include_dinner,
+            include_dessert=include_dessert,
+        )
         last_error: Exception = ValueError("Nenhum provider disponível")
 
         for provider_name, provider in self._providers:

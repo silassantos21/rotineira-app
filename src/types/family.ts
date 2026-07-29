@@ -21,6 +21,7 @@ export interface FamilyMember {
   appetite: Appetite
   restrictions: RestrictionId[]
   objectives: string[]
+  calorie_limit_kcal?: number | null
 }
 
 export interface FamilyProfile {

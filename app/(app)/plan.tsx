@@ -248,6 +248,12 @@ function MealCard({ meal }: { meal: DailyMeal }) {
         <View style={styles.mealHeader}>
           <Text style={styles.dayLabel}>{meal.day}</Text>
           <Text style={styles.lunchName}>{meal.lunch}</Text>
+          {meal.breakfast && (
+            <View style={styles.breakfastChip}>
+              <MCI name="coffee-outline" size={13} color={colors.brand.accent} />
+              <Text style={styles.breakfastChipText}>{meal.breakfast}</Text>
+            </View>
+          )}
           {totalTime > 0 && (
             <View style={styles.timeInfo}>
               <Feather name="clock" size={12} color={colors.text.muted} />
@@ -256,24 +262,71 @@ function MealCard({ meal }: { meal: DailyMeal }) {
           )}
         </View>
         <View style={styles.portionList}>
-          {members.map(([name, portion]) => (
-            <View key={name} style={styles.portionRow}>
-              <View style={styles.portionAvatar}>
-                <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+          {members.map(([name, portion]) => {
+            const altLunch = meal.member_lunches?.[name]
+            return (
+              <View key={name} style={styles.portionRow}>
+                <View style={styles.portionAvatar}>
+                  <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+                </View>
+                <View style={styles.portionMeta}>
+                  <Text style={styles.portionName}>{name}</Text>
+                  {altLunch && (
+                    <Text style={styles.portionAltLunch}>{altLunch}</Text>
+                  )}
+                </View>
+                <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+                <View style={styles.portionBreakdown}>
+                  <Text style={styles.breakdownText}>
+                    P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+                  </Text>
+                </View>
               </View>
-              <Text style={styles.portionName}>{name}</Text>
-              <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-              <View style={styles.portionBreakdown}>
-                <Text style={styles.breakdownText}>
-                  P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                </Text>
-              </View>
-            </View>
-          ))}
+            )
+          })}
           <View style={styles.macroLegend}>
             <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
           </View>
         </View>
+
+        {meal.dinner && (
+          <>
+            <View style={styles.mealDivider} />
+            <View style={styles.mealSectionHeader}>
+              <MCI name="silverware-fork-knife" size={13} color={colors.brand.secondary} />
+              <Text style={styles.mealSectionLabel}>JANTA</Text>
+            </View>
+            <Text style={styles.lunchName}>{meal.dinner}</Text>
+            {meal.dinner_portions && Object.keys(meal.dinner_portions).length > 0 && (
+              <View style={styles.portionList}>
+                {Object.entries(meal.dinner_portions).map(([name, portion]) => (
+                  <View key={name} style={styles.portionRow}>
+                    <View style={styles.portionAvatar}>
+                      <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.portionMeta}>
+                      <Text style={styles.portionName}>{name}</Text>
+                    </View>
+                    <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+                    <View style={styles.portionBreakdown}>
+                      <Text style={styles.breakdownText}>
+                        P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+          </>
+        )}
+
+        {meal.dessert && (
+          <View style={styles.dessertChip}>
+            <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+            <Text style={styles.dessertChipText}>{meal.dessert}</Text>
+          </View>
+        )}
+
         <TouchableOpacity style={styles.prepButton} onPress={() => setShowPrep(true)} activeOpacity={0.7}>
           <Feather name="search" size={15} color={colors.brand.primary} />
           <Text style={styles.prepButtonText}>Ver modo de preparo</Text>
@@ -466,7 +519,15 @@ function AssemblySection({ meals }: { meals: DailyMeal[] }) {
 
   if (members.length === 0) return null
 
-  const weekTotal = meals.reduce((sum, m) => sum + (m.portions[selected]?.total_g ?? 0), 0)
+  const hasDinner = meals.some(
+    (m) => !!m.dinner && !!m.dinner_portions && Object.keys(m.dinner_portions).length > 0
+  )
+  const lunchTotal = meals.reduce((sum, m) => sum + (m.portions[selected]?.total_g ?? 0), 0)
+  const dinnerTotal = hasDinner
+    ? meals.reduce((sum, m) => sum + (m.dinner_portions?.[selected]?.total_g ?? 0), 0)
+    : 0
+  const weekTotal = lunchTotal + dinnerTotal
+  const mealCount = meals.length * (hasDinner ? 2 : 1)
 
   return (
     <View style={styles.section}>
@@ -490,7 +551,7 @@ function AssemblySection({ meals }: { meals: DailyMeal[] }) {
       <View style={styles.assemblySummaryCard}>
         <View style={styles.assemblySummaryRow}>
           <View style={styles.assemblyStat}>
-            <Text style={styles.assemblyStatValue}>{meals.length}</Text>
+            <Text style={styles.assemblyStatValue}>{mealCount}</Text>
             <Text style={styles.assemblyStatLabel}>marmitas</Text>
           </View>
           <View style={styles.assemblySeparator} />
@@ -500,7 +561,7 @@ function AssemblySection({ meals }: { meals: DailyMeal[] }) {
           </View>
           <View style={styles.assemblySeparator} />
           <View style={styles.assemblyStat}>
-            <Text style={styles.assemblyStatValue}>{Math.round(weekTotal / meals.length)}g</Text>
+            <Text style={styles.assemblyStatValue}>{mealCount > 0 ? Math.round(weekTotal / mealCount) : 0}g</Text>
             <Text style={styles.assemblyStatLabel}>média/marmita</Text>
           </View>
         </View>
@@ -509,14 +570,15 @@ function AssemblySection({ meals }: { meals: DailyMeal[] }) {
       {/* Marmitas por dia */}
       {meals.map((meal) => {
         const portion = meal.portions[selected]
+        const dinnerPortion = meal.dinner_portions?.[selected]
         if (!portion) return null
-        return <ContainerCard key={meal.day} meal={meal} portion={portion} />
+        return <ContainerCard key={meal.day} meal={meal} portion={portion} dinnerPortion={dinnerPortion} />
       })}
     </View>
   )
 }
 
-function ContainerCard({ meal, portion }: { meal: DailyMeal; portion: MealPortion }) {
+function ContainerCard({ meal, portion, dinnerPortion }: { meal: DailyMeal; portion: MealPortion; dinnerPortion?: MealPortion }) {
   return (
     <View style={styles.containerCard}>
       <View style={styles.containerHeader}>
@@ -526,7 +588,7 @@ function ContainerCard({ meal, portion }: { meal: DailyMeal; portion: MealPortio
         </View>
         <View style={styles.containerWeight}>
           <Text style={styles.containerWeightValue}>{Math.round(portion.total_g)}g</Text>
-          <Text style={styles.containerWeightLabel}>1 marmita</Text>
+          <Text style={styles.containerWeightLabel}>{dinnerPortion ? 'almoço' : '1 marmita'}</Text>
         </View>
       </View>
       <View style={styles.barsWrapper}>
@@ -534,6 +596,25 @@ function ContainerCard({ meal, portion }: { meal: DailyMeal; portion: MealPortio
         <ComponentBar label="Carboidrato" value={portion.carb_g} total={portion.total_g} color={colors.brand.primary} />
         <ComponentBar label="Vegetal" value={portion.vegetable_g} total={portion.total_g} color={colors.brand.secondary} />
       </View>
+      {dinnerPortion && meal.dinner && (
+        <>
+          <View style={styles.mealDivider} />
+          <View style={styles.containerHeader}>
+            <View style={styles.containerInfo}>
+              <Text style={styles.containerRecipe}>{meal.dinner}</Text>
+            </View>
+            <View style={styles.containerWeight}>
+              <Text style={styles.containerWeightValue}>{Math.round(dinnerPortion.total_g)}g</Text>
+              <Text style={styles.containerWeightLabel}>janta</Text>
+            </View>
+          </View>
+          <View style={styles.barsWrapper}>
+            <ComponentBar label="Proteína" value={dinnerPortion.protein_g} total={dinnerPortion.total_g} color={colors.brand.accent} />
+            <ComponentBar label="Carboidrato" value={dinnerPortion.carb_g} total={dinnerPortion.total_g} color={colors.brand.primary} />
+            <ComponentBar label="Vegetal" value={dinnerPortion.vegetable_g} total={dinnerPortion.total_g} color={colors.brand.secondary} />
+          </View>
+        </>
+      )}
     </View>
   )
 }
@@ -967,6 +1048,57 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   mealHeader: { gap: spacing['1'] },
+  breakfastChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing['2'],
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.accent + '14',
+    borderWidth: 1,
+    borderColor: colors.brand.accent + '30',
+  },
+  breakfastChipText: {
+    ...textStyles.caption,
+    color: colors.brand.accent,
+    fontFamily: fontFamily.semiBold,
+  },
+  mealDivider: {
+    height: 1,
+    backgroundColor: colors.border.light,
+    marginVertical: spacing['1'],
+  },
+  mealSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  mealSectionLabel: {
+    ...textStyles.caption,
+    fontFamily: fontFamily.semiBold,
+    color: colors.brand.secondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  dessertChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: spacing['2'],
+    paddingVertical: 3,
+    borderRadius: radius.full,
+    backgroundColor: colors.brand.secondary + '14',
+    borderWidth: 1,
+    borderColor: colors.brand.secondary + '30',
+  },
+  dessertChipText: {
+    ...textStyles.caption,
+    color: colors.brand.secondary,
+    fontFamily: fontFamily.semiBold,
+  },
   timeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1006,7 +1138,7 @@ const styles = StyleSheet.create({
   portionList: { gap: spacing['2'] },
   portionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: spacing['2'],
     flexWrap: 'wrap',
   },
@@ -1023,7 +1155,9 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.semiBold,
     color: colors.brand.primary,
   },
-  portionName: { ...textStyles.bodySmall, fontFamily: fontFamily.semiBold, color: colors.text.body, flex: 1 },
+  portionMeta: { flex: 1, gap: 2 },
+  portionName: { ...textStyles.bodySmall, fontFamily: fontFamily.semiBold, color: colors.text.body },
+  portionAltLunch: { ...textStyles.caption, color: colors.brand.accent, fontFamily: fontFamily.semiBold },
   portionWeight: {
     ...textStyles.bodySmall,
     fontFamily: fontFamily.semiBold,

@@ -21,7 +21,12 @@ class MealPortion(BaseModel):
 class DailyMeal(BaseModel):
     day: str
     lunch: str
+    breakfast: Optional[str] = None
+    member_lunches: Optional[Dict[str, str]] = None
     portions: Dict[str, MealPortion]
+    dinner: Optional[str] = None
+    dinner_portions: Optional[Dict[str, MealPortion]] = None
+    dessert: Optional[str] = None
     prep_time_min: int = 0
     cook_time_min: int = 0
     utensils: List[str] = []
@@ -36,9 +41,19 @@ class ShoppingItem(BaseModel):
     checked: bool = False
 
 
+class PlanPeriod(str, Enum):
+    weekly = "weekly"
+    biweekly = "biweekly"
+    monthly = "monthly"
+
+
 class WeeklyPlanCreate(BaseModel):
     family_profile_id: str
     week_start: date
+    period: PlanPeriod = PlanPeriod.weekly
+    include_breakfast: bool = False
+    include_dinner: bool = False
+    include_dessert: bool = False
 
 
 class AdaptPlanRequest(BaseModel):
@@ -51,6 +66,7 @@ class WeeklyPlanResponse(BaseModel):
     family_profile_id: str
     week_start: date
     status: PlanStatus
+    period: str = "weekly"
     meals: Optional[List[DailyMeal]] = None
     shopping_list: Optional[List[ShoppingItem]] = None
     assembly_guide: Optional[dict] = None

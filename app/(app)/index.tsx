@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native'
+import { useState } from 'react'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -9,12 +10,22 @@ import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { Button } from '../../src/components/ui/Button'
 import { useAuthStore } from '../../src/store/auth'
 import { fetchFamilyProfile } from '../../src/services/family'
-import { generatePlan } from '../../src/services/plans'
+import { generatePlan, type PlanPeriod } from '../../src/services/plans'
 import type { FamilyProfile } from '../../src/types/family'
+
+const PERIOD_OPTIONS: Array<{ value: PlanPeriod; label: string; premium: boolean }> = [
+  { value: 'weekly',   label: 'Semana',  premium: false },
+  { value: 'biweekly', label: '15 dias', premium: true },
+  { value: 'monthly',  label: 'Mês',     premium: true },
+]
 
 export default function HomeScreen() {
   const { signOut, user } = useAuthStore()
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] ?? 'bem-vindo'
+  const [selectedPeriod, setSelectedPeriod] = useState<PlanPeriod>('weekly')
+  const [includeBreakfast, setIncludeBreakfast] = useState(false)
+  const [includeDinner, setIncludeDinner] = useState(false)
+  const [includeDessert, setIncludeDessert] = useState(false)
 
   const { data: familyProfile, isLoading } = useQuery<FamilyProfile | null>({
     queryKey: ['family_profile', user?.id],
@@ -26,12 +37,12 @@ export default function HomeScreen() {
   const memberCount = familyProfile?.members.length ?? 0
 
   const generateMutation = useMutation({
-    mutationFn: () => generatePlan(familyProfile!.id),
+    mutationFn: () => generatePlan(familyProfile!.id, selectedPeriod, includeBreakfast, includeDinner, includeDessert),
     onSuccess: (plan) => {
       router.push(`/plan?id=${plan.id}`)
     },
     onError: (err: Error) => {
-      if (err.message.includes('Limite semanal')) {
+      if (err.message.includes('Limite semanal') || err.message.includes('Premium')) {
         router.push('/paywall')
         return
       }
@@ -121,10 +132,57 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* Botão principal — Gerar Cardápio */}
+        {/* Seletor de período + Botão principal */}
         <View style={styles.generateSection}>
+          <View style={styles.periodRow}>
+            {PERIOD_OPTIONS.map((opt) => {
+              const active = selectedPeriod === opt.value
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.periodOption, active && styles.periodOptionActive]}
+                  onPress={() => setSelectedPeriod(opt.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.periodLabel, active && styles.periodLabelActive]}>
+                    {opt.label}
+                  </Text>
+                  {opt.premium && (
+                    <Text style={[styles.premiumBadge, active && styles.premiumBadgeActive]}>
+                      PREMIUM
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          {(
+            [
+              { label: 'Incluir café da manhã', value: includeBreakfast, setter: setIncludeBreakfast },
+              { label: 'Incluir janta',         value: includeDinner,    setter: setIncludeDinner },
+              { label: 'Incluir sobremesa',      value: includeDessert,   setter: setIncludeDessert },
+            ] as Array<{ label: string; value: boolean; setter: (v: boolean) => void }>
+          ).map(({ label, value, setter }) => (
+            <TouchableOpacity
+              key={label}
+              style={styles.breakfastToggle}
+              onPress={() => setter(!value)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.breakfastToggleInfo}>
+                <Text style={styles.breakfastToggleLabel}>{label}</Text>
+                <Text style={styles.premiumBadge}>PREMIUM</Text>
+              </View>
+              <Switch
+                value={value}
+                onValueChange={setter}
+                trackColor={{ false: colors.border.medium, true: colors.brand.primary + '50' }}
+                thumbColor={value ? colors.brand.primary : colors.border.medium}
+              />
+            </TouchableOpacity>
+          ))}
           <Button
-            label={generateMutation.isPending ? 'Iniciando...' : 'Gerar cardápio semanal'}
+            label={generateMutation.isPending ? 'Iniciando...' : 'Gerar cardápio'}
             onPress={() => generateMutation.mutate()}
             disabled={!hasFamily || generateMutation.isPending}
           />
@@ -226,6 +284,63 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
+  },
+
+  periodRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.background.badge,
+    borderRadius: radius.md,
+    padding: 4,
+    gap: 4,
+  },
+  periodOption: {
+    flex: 1,
+    paddingVertical: spacing['2'],
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    gap: 2,
+  },
+  periodOptionActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  periodLabel: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.text.muted,
+  },
+  periodLabelActive: {
+    color: colors.text.inverse,
+  },
+  premiumBadge: {
+    fontSize: 8,
+    fontFamily: fontFamily.bold,
+    color: colors.brand.accent,
+    letterSpacing: 0.5,
+  },
+  premiumBadgeActive: {
+    color: colors.text.inverse + 'CC',
+  },
+
+  breakfastToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing['4'],
+    paddingVertical: spacing['3'],
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  breakfastToggleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['2'],
+  },
+  breakfastToggleLabel: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.text.body,
   },
 
   memberMotivation: {

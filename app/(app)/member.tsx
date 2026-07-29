@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -34,6 +35,9 @@ export default function MemberScreen() {
   const [restrictions, setRestrictions] = useState<RestrictionId[]>(
     editingMember?.restrictions ?? []
   )
+  const [calorieLimitInput, setCalorieLimitInput] = useState(
+    editingMember?.calorie_limit_kcal != null ? String(editingMember.calorie_limit_kcal) : ''
+  )
   const [nameError, setNameError] = useState('')
 
   const isEditing = editingIndex !== null
@@ -50,7 +54,17 @@ export default function MemberScreen() {
       setNameError('O nome é obrigatório.')
       return
     }
-    commitMember({ name: trimmed, type, appetite, restrictions, objectives: [] })
+    const parsedCalories = calorieLimitInput.trim() === ''
+      ? null
+      : parseInt(calorieLimitInput.replace(',', '.'), 10)
+    commitMember({
+      name: trimmed,
+      type,
+      appetite,
+      restrictions,
+      objectives: [],
+      calorie_limit_kcal: Number.isFinite(parsedCalories) ? parsedCalories : null,
+    })
     router.back()
   }
 
@@ -137,6 +151,28 @@ export default function MemberScreen() {
                   </TouchableOpacity>
                 )
               })}
+            </View>
+          </View>
+
+          {/* Limite de calorias */}
+          <View style={styles.field}>
+            <Text style={styles.label}>Limite calórico diário (opcional)</Text>
+            <Text style={styles.hint}>
+              A IA ajustará as porções para não ultrapassar este valor. Ex: 1800 para dieta de emagrecimento.
+            </Text>
+            <View style={styles.calorieRow}>
+              <TextInput
+                style={styles.calorieInput}
+                value={calorieLimitInput}
+                onChangeText={setCalorieLimitInput}
+                placeholder="Ex: 1800"
+                placeholderTextColor={colors.text.placeholder}
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+              <View style={styles.calorieSuffix}>
+                <Text style={styles.calorieSuffixText}>kcal/dia</Text>
+              </View>
             </View>
           </View>
         </ScrollView>
@@ -258,5 +294,36 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border.light,
     backgroundColor: colors.background.screen,
+  },
+
+  calorieRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.background.input,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border.medium,
+    overflow: 'hidden',
+    height: 52,
+  },
+  calorieInput: {
+    flex: 1,
+    paddingHorizontal: spacing['4'],
+    ...textStyles.body,
+    color: colors.text.heading,
+  },
+  calorieSuffix: {
+    paddingHorizontal: spacing['3'],
+    paddingVertical: spacing['3'],
+    backgroundColor: colors.background.badge,
+    borderLeftWidth: 1,
+    borderLeftColor: colors.border.light,
+    height: '100%',
+    justifyContent: 'center',
+  },
+  calorieSuffixText: {
+    ...textStyles.bodySmall,
+    fontFamily: fontFamily.semiBold,
+    color: colors.text.muted,
   },
 })

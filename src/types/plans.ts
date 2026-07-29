@@ -10,7 +10,12 @@ export interface MealPortion {
 export interface DailyMeal {
   day: string
   lunch: string
+  breakfast?: string
+  member_lunches?: Record<string, string>
   portions: Record<string, MealPortion>
+  dinner?: string
+  dinner_portions?: Record<string, MealPortion>
+  dessert?: string
   prep_time_min: number
   cook_time_min: number
   utensils: string[]
@@ -31,6 +36,7 @@ export interface WeeklyPlan {
   family_profile_id: string
   week_start: string
   status: PlanStatus
+  period?: string
   meals?: DailyMeal[]
   shopping_list?: ShoppingItem[]
   assembly_guide?: Record<string, unknown>

@@ -10,12 +10,24 @@ export function getNextMonday(): string {
   return monday.toISOString().split('T')[0]
 }
 
-export async function generatePlan(familyProfileId: string): Promise<WeeklyPlan> {
+export type PlanPeriod = 'weekly' | 'biweekly' | 'monthly'
+
+export async function generatePlan(
+  familyProfileId: string,
+  period: PlanPeriod = 'weekly',
+  includeBreakfast = false,
+  includeDinner = false,
+  includeDessert = false,
+): Promise<WeeklyPlan> {
   return apiFetch<WeeklyPlan>('/api/v1/plans/generate', {
     method: 'POST',
     body: JSON.stringify({
       family_profile_id: familyProfileId,
       week_start: getNextMonday(),
+      period,
+      include_breakfast: includeBreakfast,
+      include_dinner: includeDinner,
+      include_dessert: includeDessert,
     }),
   })
 }

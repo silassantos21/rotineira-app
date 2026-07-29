@@ -20,6 +20,7 @@ class FamilyMember(BaseModel):
     appetite: AppetiteLevel
     restrictions: List[str] = []
     objectives: List[str] = []
+    calorie_limit_kcal: Optional[int] = None
 
 
 class FamilyProfileCreate(BaseModel):
