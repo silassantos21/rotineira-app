@@ -17,11 +17,14 @@ class DailyMealAI(BaseModel):
     day: str
     lunch: str
     breakfast: Optional[str] = None
+    breakfast_instructions: Optional[List[str]] = None
+    breakfast_portions: Optional[Dict[str, MealPortionAI]] = None
     member_lunches: Dict[str, str] = {}
     portions: Dict[str, MealPortionAI]
     dinner: Optional[str] = None
     dinner_portions: Optional[Dict[str, MealPortionAI]] = None
     dessert: Optional[str] = None
+    dinner_dessert: Optional[str] = None
     prep_time_min: int
     cook_time_min: int
     utensils: List[str]
@@ -52,6 +55,8 @@ def _build_schema_example(
     ]
     if include_breakfast:
         meal_fields.append('      "breakfast": "Tapioca com queijo e ovo"')
+        meal_fields.append('      "breakfast_instructions": ["Passo 1: descrição clara e objetiva", "Passo 2: descrição clara e objetiva"]')
+        meal_fields.append('      "breakfast_portions": {"NomeDoMembro": {"protein_g": 80, "carb_g": 60, "vegetable_g": 30, "total_g": 170}}')
     meal_fields += [
         '      "member_lunches": {"NomeDoMembro": "Prato alternativo quando restrição impede o principal"}',
         '      "portions": {"NomeDoMembro": {"protein_g": 200, "carb_g": 150, "vegetable_g": 100, "total_g": 450}}',
@@ -63,6 +68,8 @@ def _build_schema_example(
         )
     if include_dessert:
         meal_fields.append('      "dessert": "Pudim de leite condensado"')
+    if include_dinner and include_dessert:
+        meal_fields.append('      "dinner_dessert": "Salada de frutas"')
     meal_fields += [
         '      "prep_time_min": 15',
         '      "cook_time_min": 30',
@@ -157,8 +164,10 @@ def _build_prompt(
         budget_rule = ""
 
     breakfast_rule = (
-        "CAFÉ DA MANHÃ (Premium): Para cada dia, inclua um campo 'breakfast' no JSON "
-        "com uma sugestão simples e prática de café da manhã brasileiro. "
+        "CAFÉ DA MANHÃ (Premium): Para cada dia, inclua os campos 'breakfast' "
+        "(sugestão simples e prática de café da manhã brasileiro), 'breakfast_instructions' "
+        "(lista de 2 a 4 passos curtos e objetivos de preparo) e 'breakfast_portions' "
+        "(mapa nome→porção no mesmo formato de 'portions', usando ~15%% das calorias diárias). "
         "Varie ao longo dos dias e respeite as restrições alimentares de todos os membros. "
         "Exemplos: 'Tapioca com queijo e ovo', 'Aveia com banana e mel', "
         "'Pão integral com pasta de amendoim'.\n\n"
@@ -167,16 +176,18 @@ def _build_prompt(
     dinner_rule = (
         "JANTA (Premium): Para cada dia, inclua campos 'dinner' (nome do prato da janta) e "
         "'dinner_portions' (mapa nome→porção no mesmo formato de 'portions'). "
-        "A janta deve ser mais leve que o almoço — use ~25% das calorias diárias. "
+        "A janta deve ser mais leve que o almoço — use ~25%% das calorias diárias. "
         "Aplique as mesmas regras de apetite e restrições alimentares dos membros. "
         "Calcule protein_g, carb_g, vegetable_g e total_g por membro para a janta.\n\n"
     ) if include_dinner else ""
 
     dessert_rule = (
         "SOBREMESA (Premium): Para cada dia, inclua um campo 'dessert' com uma sugestão simples "
-        "de sobremesa brasileira. Deve ser leve, variada ao longo dos dias e respeitar as "
+        "de sobremesa brasileira para o almoço. "
+        + ("Inclua também 'dinner_dessert' com uma sobremesa diferente e leve para a janta. " if include_dinner else "")
+        + "Ambas devem ser variadas ao longo dos dias e respeitar as "
         "restrições alimentares de todos os membros. "
-        "Exemplos: 'Mousse de maracujá', 'Frutas com mel', 'Pudim de leite condensado'.\n\n"
+        "Exemplos: 'Mousse de maracujá', 'Frutas com mel', 'Pudim de leite condensado', 'Salada de frutas'.\n\n"
     ) if include_dessert else ""
 
     schema_json = _build_schema_example(include_breakfast, include_dinner, include_dessert)
@@ -273,6 +284,14 @@ class _MockProvider:
             }
             if include_breakfast:
                 meal["breakfast"] = "Tapioca com queijo e ovo"
+                meal["breakfast_instructions"] = [
+                    "Umedeça a goma de tapioca na frigideira antiaderente em fogo médio.",
+                    "Adicione o queijo ralado por cima e aguarde derreter por 1 min.",
+                    "Quebre o ovo no centro e tampe a frigideira por 2 min.",
+                ]
+                meal["breakfast_portions"] = {
+                    "Membro 1": {"protein_g": 80, "carb_g": 60, "vegetable_g": 30, "total_g": 170}
+                }
             if include_dinner:
                 meal["dinner"] = "Sopa de legumes com torrada"
                 meal["dinner_portions"] = {
@@ -280,6 +299,8 @@ class _MockProvider:
                 }
             if include_dessert:
                 meal["dessert"] = "Frutas com mel"
+                if include_dinner:
+                    meal["dinner_dessert"] = "Salada de frutas"
             meals.append(meal)
 
         return json.dumps({

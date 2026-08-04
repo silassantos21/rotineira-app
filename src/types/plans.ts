@@ -11,11 +11,14 @@ export interface DailyMeal {
   day: string
   lunch: string
   breakfast?: string
+  breakfast_instructions?: string[]
+  breakfast_portions?: Record<string, MealPortion>
   member_lunches?: Record<string, string>
   portions: Record<string, MealPortion>
   dinner?: string
   dinner_portions?: Record<string, MealPortion>
   dessert?: string
+  dinner_dessert?: string
   prep_time_min: number
   cook_time_min: number
   utensils: string[]

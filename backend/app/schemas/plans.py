@@ -22,11 +22,14 @@ class DailyMeal(BaseModel):
     day: str
     lunch: str
     breakfast: Optional[str] = None
+    breakfast_instructions: Optional[List[str]] = None
+    breakfast_portions: Optional[Dict[str, MealPortion]] = None
     member_lunches: Optional[Dict[str, str]] = None
     portions: Dict[str, MealPortion]
     dinner: Optional[str] = None
     dinner_portions: Optional[Dict[str, MealPortion]] = None
     dessert: Optional[str] = None
+    dinner_dessert: Optional[str] = None
     prep_time_min: int = 0
     cook_time_min: int = 0
     utensils: List[str] = []

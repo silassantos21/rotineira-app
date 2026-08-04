@@ -25,7 +25,11 @@ import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { Button } from '../../src/components/ui/Button'
 import { getPlan, adaptPlan } from '../../src/services/plans'
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition'
+import { fetchFamilyProfile } from '../../src/services/family'
+import { useAuthStore } from '../../src/store/auth'
+import type { FamilyProfile } from '../../src/types/family'
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from '../../src/lib/speech'
+import { isExpoGo } from '../../src/services/notifications'
 import type { WeeklyPlan, DailyMeal, ShoppingItem, MealPortion } from '../../src/types/plans'
 import { SHOPPING_CATEGORIES } from '../../src/types/plans'
 
@@ -35,6 +39,7 @@ export default function PlanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<Tab>('cardapio')
   const [showAdaptModal, setShowAdaptModal] = useState(false)
+  const { user } = useAuthStore()
 
   const { data: plan, isError } = useQuery<WeeklyPlan>({
     queryKey: ['plan', id],
@@ -44,6 +49,13 @@ export default function PlanScreen() {
       return status === 'pending' || status === 'processing' ? 3000 : false
     },
     enabled: !!id,
+  })
+
+  const profileUserId = plan?.user_id ?? user?.id
+  const { data: familyProfile } = useQuery<FamilyProfile | null>({
+    queryKey: ['family_profile', profileUserId],
+    queryFn: () => fetchFamilyProfile(profileUserId!),
+    enabled: !!profileUserId,
   })
 
   const adaptMutation = useMutation({
@@ -64,7 +76,9 @@ export default function PlanScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
-          headerTitle: 'Cardápio Semanal',
+          headerTitle: plan?.period === 'biweekly' ? 'Cardápio Quinzenal'
+                     : plan?.period === 'monthly'  ? 'Cardápio Mensal'
+                     : 'Cardápio Semanal',
           headerTitleStyle: { ...textStyles.h3, color: colors.text.inverse } as any,
           headerBackTitle: '',
         }}
@@ -82,7 +96,7 @@ export default function PlanScreen() {
           >
             {activeTab === 'cardapio' && (
               <>
-                <MealsSection meals={plan.meals} />
+                <MealsSection meals={plan.meals} weekStart={plan.week_start} />
                 <TouchableOpacity
                   style={styles.adaptButton}
                   onPress={() => setShowAdaptModal(true)}
@@ -97,10 +111,16 @@ export default function PlanScreen() {
               </>
             )}
             {activeTab === 'compras' && plan.shopping_list && (
-              <ShoppingSection items={plan.shopping_list} weekStart={plan.week_start} planId={id} />
+              <ShoppingSection
+                items={plan.shopping_list}
+                weekStart={plan.week_start}
+                planId={id}
+                budget={familyProfile?.weekly_budget_brl ?? null}
+                period={plan.period}
+              />
             )}
             {activeTab === 'montagem' && (
-              <AssemblySection meals={plan.meals} />
+              <AssemblySection meals={plan.meals} weekStart={plan.week_start} />
             )}
           </ScrollView>
 
@@ -227,33 +247,84 @@ function TabBar({ activeTab, onSelect }: { activeTab: Tab; onSelect: (t: Tab) =>
   )
 }
 
-function MealsSection({ meals }: { meals: DailyMeal[] }) {
+const _DAY_OFFSETS: Array<[string, number]> = [
+  ['segunda', 0], ['terça', 1], ['terca', 1], ['quarta', 2],
+  ['quinta', 3], ['sexta', 4], ['sábado', 5], ['sabado', 5], ['domingo', 6],
+  ['seg', 0], ['ter', 1], ['qua', 2], ['qui', 3], ['sex', 4], ['sáb', 5], ['sab', 5], ['dom', 6],
+]
+
+function getDayDate(dayStr: string, weekStart: string): string {
+  const lower = dayStr.toLowerCase()
+  let dayOffset = -1
+  for (const [key, offset] of _DAY_OFFSETS) {
+    if (lower.startsWith(key)) { dayOffset = offset; break }
+  }
+  if (dayOffset === -1) return ''
+  const weekMatch = lower.match(/[-–]\s*s?(\d)(?:\b|$)/)
+  const weekOffset = weekMatch ? (parseInt(weekMatch[1]) - 1) * 7 : 0
+  const [y, m, d] = weekStart.split('-').map(Number)
+  const date = new Date(y, m - 1, d + weekOffset + dayOffset)
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`
+}
+
+function MealsSection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: string }) {
   return (
     <View style={styles.section}>
       {meals.map((meal) => (
-        <MealCard key={meal.day} meal={meal} />
+        <MealCard key={meal.day} meal={meal} weekStart={weekStart} />
       ))}
     </View>
   )
 }
 
-function MealCard({ meal }: { meal: DailyMeal }) {
+function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
   const [showPrep, setShowPrep] = useState(false)
   const members = Object.entries(meal.portions)
   const totalTime = (meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)
+  const dayDate = getDayDate(meal.day, weekStart)
 
   return (
     <>
       <View style={styles.card}>
-        <View style={styles.mealHeader}>
-          <Text style={styles.dayLabel}>{meal.day}</Text>
-          <Text style={styles.lunchName}>{meal.lunch}</Text>
-          {meal.breakfast && (
-            <View style={styles.breakfastChip}>
+        {meal.breakfast && (
+          <>
+            <View style={styles.mealSectionHeader}>
               <MCI name="coffee-outline" size={13} color={colors.brand.accent} />
-              <Text style={styles.breakfastChipText}>{meal.breakfast}</Text>
+              <Text style={[styles.mealSectionLabel, { color: colors.brand.accent }]}>CAFÉ DA MANHÃ</Text>
             </View>
-          )}
+            <Text style={styles.lunchName}>{meal.breakfast}</Text>
+            {meal.breakfast_portions && Object.keys(meal.breakfast_portions).length > 0 && (
+              <View style={styles.portionList}>
+                {Object.entries(meal.breakfast_portions).map(([name, portion]) => (
+                  <View key={name} style={styles.portionRow}>
+                    <View style={styles.portionAvatar}>
+                      <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.portionMeta}>
+                      <Text style={styles.portionName}>{name}</Text>
+                    </View>
+                    <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+                    <View style={styles.portionBreakdown}>
+                      <Text style={styles.breakdownText}>
+                        P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            )}
+            <View style={styles.mealDivider} />
+            <View style={styles.mealSectionHeader}>
+              <MCI name="silverware-fork-knife" size={13} color={colors.brand.secondary} />
+              <Text style={styles.mealSectionLabel}>ALMOÇO</Text>
+            </View>
+          </>
+        )}
+        <View style={styles.mealHeader}>
+          <Text style={styles.dayLabel}>
+            {dayDate ? `${meal.day}  ·  ${dayDate}` : meal.day}
+          </Text>
+          <Text style={styles.lunchName}>{meal.lunch}</Text>
           {totalTime > 0 && (
             <View style={styles.timeInfo}>
               <Feather name="clock" size={12} color={colors.text.muted} />
@@ -289,6 +360,13 @@ function MealCard({ meal }: { meal: DailyMeal }) {
           </View>
         </View>
 
+        {meal.dessert && (
+          <View style={styles.dessertChip}>
+            <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+            <Text style={styles.dessertChipText}>{meal.dessert}</Text>
+          </View>
+        )}
+
         {meal.dinner && (
           <>
             <View style={styles.mealDivider} />
@@ -317,15 +395,60 @@ function MealCard({ meal }: { meal: DailyMeal }) {
                 ))}
               </View>
             )}
+            {meal.dinner_dessert && (
+              <View style={styles.dessertChip}>
+                <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+                <Text style={styles.dessertChipText}>{meal.dinner_dessert}</Text>
+              </View>
+            )}
           </>
         )}
 
-        {meal.dessert && (
-          <View style={styles.dessertChip}>
-            <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
-            <Text style={styles.dessertChipText}>{meal.dessert}</Text>
-          </View>
-        )}
+        {/* Resumo diário por pessoa quando há múltiplas refeições com porções */}
+        {(meal.breakfast_portions || meal.dinner_portions) && (() => {
+          const dailyRows = members
+            .map(([name, lunchP]) => {
+              const bfP = meal.breakfast_portions?.[name]
+              const dinP = meal.dinner_portions?.[name]
+              if (!bfP && !dinP) return null
+              return {
+                name,
+                total_g: lunchP.total_g + (bfP?.total_g ?? 0) + (dinP?.total_g ?? 0),
+                protein_g: lunchP.protein_g + (bfP?.protein_g ?? 0) + (dinP?.protein_g ?? 0),
+                carb_g: lunchP.carb_g + (bfP?.carb_g ?? 0) + (dinP?.carb_g ?? 0),
+                vegetable_g: lunchP.vegetable_g + (bfP?.vegetable_g ?? 0) + (dinP?.vegetable_g ?? 0),
+              }
+            })
+            .filter(Boolean) as { name: string; total_g: number; protein_g: number; carb_g: number; vegetable_g: number }[]
+          if (!dailyRows.length) return null
+          return (
+            <>
+              <View style={styles.mealDivider} />
+              <View style={styles.mealSectionHeader}>
+                <Feather name="bar-chart-2" size={13} color={colors.text.muted} />
+                <Text style={[styles.mealSectionLabel, { color: colors.text.muted }]}>TOTAL DO DIA</Text>
+              </View>
+              <View style={styles.portionList}>
+                {dailyRows.map((row) => (
+                  <View key={row.name} style={styles.portionRow}>
+                    <View style={styles.portionAvatar}>
+                      <Text style={styles.portionAvatarText}>{row.name[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.portionMeta}>
+                      <Text style={styles.portionName}>{row.name}</Text>
+                    </View>
+                    <Text style={styles.portionWeight}>{Math.round(row.total_g)}g</Text>
+                    <View style={styles.portionBreakdown}>
+                      <Text style={styles.breakdownText}>
+                        P:{Math.round(row.protein_g)}g · C:{Math.round(row.carb_g)}g · V:{Math.round(row.vegetable_g)}g
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </>
+          )
+        })()}
 
         <TouchableOpacity style={styles.prepButton} onPress={() => setShowPrep(true)} activeOpacity={0.7}>
           <Feather name="search" size={15} color={colors.brand.primary} />
@@ -339,67 +462,145 @@ function MealCard({ meal }: { meal: DailyMeal }) {
 }
 
 function PrepModal({ meal, visible, onClose }: { meal: DailyMeal; visible: boolean; onClose: () => void }) {
+  type PrepTab = 'cafe' | 'almoco' | 'janta'
+  const hasCafe = !!meal.breakfast
+  const hasJanta = !!meal.dinner
+  const needsTabs = hasCafe || hasJanta
+  const [activeTab, setActiveTab] = useState<PrepTab>('almoco')
+
+  useEffect(() => {
+    if (visible) setActiveTab(hasCafe ? 'cafe' : 'almoco')
+  }, [visible])
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
         <View style={styles.modalHeader}>
           <View style={styles.modalTitleBlock}>
             <Text style={styles.modalDay}>{meal.day}</Text>
-            <Text style={styles.modalTitle}>{meal.lunch}</Text>
+            {!needsTabs && <Text style={styles.modalTitle}>{meal.lunch}</Text>}
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Feather name="x" size={22} color={colors.text.muted} />
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
-          {/* Tempo */}
-          <View style={styles.timeRow}>
-            <View style={styles.timeChip}>
-              <Feather name="scissors" size={14} color={colors.brand.secondary} />
-              <Text style={styles.timeChipLabel}>Preparo</Text>
-              <Text style={styles.timeChipValue}>{meal.prep_time_min ?? 0} min</Text>
-            </View>
-            <View style={styles.timeChip}>
-              <Feather name="thermometer" size={14} color={colors.brand.accent} />
-              <Text style={styles.timeChipLabel}>Cozimento</Text>
-              <Text style={styles.timeChipValue}>{meal.cook_time_min ?? 0} min</Text>
-            </View>
-            <View style={styles.timeChip}>
-              <Feather name="clock" size={14} color={colors.brand.primary} />
-              <Text style={styles.timeChipLabel}>Total</Text>
-              <Text style={styles.timeChipValue}>{(meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)} min</Text>
-            </View>
+        {needsTabs && (
+          <View style={styles.prepTabBar}>
+            {hasCafe && (
+              <TouchableOpacity
+                style={[styles.prepTab, activeTab === 'cafe' && styles.prepTabActive]}
+                onPress={() => setActiveTab('cafe')}
+                activeOpacity={0.7}
+              >
+                <MCI name="coffee-outline" size={13} color={activeTab === 'cafe' ? colors.text.inverse : colors.text.muted} />
+                <Text style={[styles.prepTabText, activeTab === 'cafe' && styles.prepTabTextActive]}>Café</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.prepTab, activeTab === 'almoco' && styles.prepTabActive]}
+              onPress={() => setActiveTab('almoco')}
+              activeOpacity={0.7}
+            >
+              <MCI name="silverware-fork-knife" size={13} color={activeTab === 'almoco' ? colors.text.inverse : colors.text.muted} />
+              <Text style={[styles.prepTabText, activeTab === 'almoco' && styles.prepTabTextActive]}>Almoço</Text>
+            </TouchableOpacity>
+            {hasJanta && (
+              <TouchableOpacity
+                style={[styles.prepTab, activeTab === 'janta' && styles.prepTabActive]}
+                onPress={() => setActiveTab('janta')}
+                activeOpacity={0.7}
+              >
+                <MCI name="weather-night" size={13} color={activeTab === 'janta' ? colors.text.inverse : colors.text.muted} />
+                <Text style={[styles.prepTabText, activeTab === 'janta' && styles.prepTabTextActive]}>Janta</Text>
+              </TouchableOpacity>
+            )}
           </View>
+        )}
 
-          {/* Utensílios */}
-          {meal.utensils?.length > 0 && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Utensílios</Text>
-              <View style={styles.utensilsGrid}>
-                {meal.utensils.map((u, i) => (
-                  <View key={i} style={styles.utensilChip}>
-                    <Feather name="tool" size={12} color={colors.brand.primary} />
-                    <Text style={styles.utensilText}>{u}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
+        <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
+          {/* Café da manhã */}
+          {activeTab === 'cafe' && (
+            <>
+              <Text style={styles.modalTitle}>{meal.breakfast}</Text>
+              {meal.breakfast_instructions && meal.breakfast_instructions.length > 0 ? (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Modo de Preparo</Text>
+                  {meal.breakfast_instructions.map((step, i) => (
+                    <View key={i} style={styles.stepRow}>
+                      <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.stepText}>{step}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.prepEmptyNote}>
+                  Sem instruções de preparo para o café da manhã neste cardápio.
+                </Text>
+              )}
+            </>
           )}
 
-          {/* Modo de Preparo */}
-          {meal.instructions?.length > 0 && (
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>Modo de Preparo</Text>
-              {meal.instructions.map((step, i) => (
-                <View key={i} style={styles.stepRow}>
-                  <View style={styles.stepNumber}>
-                    <Text style={styles.stepNumberText}>{i + 1}</Text>
-                  </View>
-                  <Text style={styles.stepText}>{step}</Text>
+          {/* Almoço */}
+          {activeTab === 'almoco' && (
+            <>
+              {needsTabs && <Text style={styles.modalTitle}>{meal.lunch}</Text>}
+              <View style={styles.timeRow}>
+                <View style={styles.timeChip}>
+                  <Feather name="scissors" size={14} color={colors.brand.secondary} />
+                  <Text style={styles.timeChipLabel}>Preparo</Text>
+                  <Text style={styles.timeChipValue}>{meal.prep_time_min ?? 0} min</Text>
                 </View>
-              ))}
-            </View>
+                <View style={styles.timeChip}>
+                  <Feather name="thermometer" size={14} color={colors.brand.accent} />
+                  <Text style={styles.timeChipLabel}>Cozimento</Text>
+                  <Text style={styles.timeChipValue}>{meal.cook_time_min ?? 0} min</Text>
+                </View>
+                <View style={styles.timeChip}>
+                  <Feather name="clock" size={14} color={colors.brand.primary} />
+                  <Text style={styles.timeChipLabel}>Total</Text>
+                  <Text style={styles.timeChipValue}>{(meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)} min</Text>
+                </View>
+              </View>
+              {meal.utensils?.length > 0 && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Utensílios</Text>
+                  <View style={styles.utensilsGrid}>
+                    {meal.utensils.map((u, i) => (
+                      <View key={i} style={styles.utensilChip}>
+                        <Feather name="tool" size={12} color={colors.brand.primary} />
+                        <Text style={styles.utensilText}>{u}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {meal.instructions?.length > 0 && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Modo de Preparo</Text>
+                  {meal.instructions.map((step, i) => (
+                    <View key={i} style={styles.stepRow}>
+                      <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.stepText}>{step}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Janta */}
+          {activeTab === 'janta' && (
+            <>
+              <Text style={styles.modalTitle}>{meal.dinner}</Text>
+              <Text style={styles.prepEmptyNote}>
+                Utilize os mesmos utensílios do almoço. A janta é mais leve — reduza as quantidades e prefira cozimentos rápidos como grelhado ou salteado.
+              </Text>
+            </>
           )}
         </ScrollView>
       </SafeAreaView>
@@ -432,6 +633,7 @@ function FeedbackModal({
   useSpeechRecognitionEvent('error', () => setIsRecording(false))
 
   async function handleMicPress() {
+    if (isExpoGo) return
     if (isRecording) {
       ExpoSpeechRecognitionModule.stop()
       return
@@ -513,7 +715,7 @@ function FeedbackModal({
   )
 }
 
-function AssemblySection({ meals }: { meals: DailyMeal[] }) {
+function AssemblySection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: string }) {
   const members = Object.keys(meals[0]?.portions ?? {})
   const [selected, setSelected] = useState(members[0] ?? '')
 
@@ -572,18 +774,23 @@ function AssemblySection({ meals }: { meals: DailyMeal[] }) {
         const portion = meal.portions[selected]
         const dinnerPortion = meal.dinner_portions?.[selected]
         if (!portion) return null
-        return <ContainerCard key={meal.day} meal={meal} portion={portion} dinnerPortion={dinnerPortion} />
+        return <ContainerCard key={meal.day} meal={meal} portion={portion} dinnerPortion={dinnerPortion} weekStart={weekStart} />
       })}
     </View>
   )
 }
 
-function ContainerCard({ meal, portion, dinnerPortion }: { meal: DailyMeal; portion: MealPortion; dinnerPortion?: MealPortion }) {
+function ContainerCard({ meal, portion, dinnerPortion, weekStart }: {
+  meal: DailyMeal; portion: MealPortion; dinnerPortion?: MealPortion; weekStart: string
+}) {
+  const dayDate = getDayDate(meal.day, weekStart)
   return (
     <View style={styles.containerCard}>
       <View style={styles.containerHeader}>
         <View style={styles.containerInfo}>
-          <Text style={styles.containerDay}>{meal.day}</Text>
+          <Text style={styles.containerDay}>
+            {dayDate ? `${meal.day}  ·  ${dayDate}` : meal.day}
+          </Text>
           <Text style={styles.containerRecipe}>{meal.lunch}</Text>
         </View>
         <View style={styles.containerWeight}>
@@ -783,7 +990,17 @@ function buildShoppingHtml(items: ShoppingItem[], weekStart: string, skippedCoun
 
 const _CHECKED_KEY = (planId: string) => `shopping_checked_${planId}`
 
-function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; weekStart: string; planId: string }) {
+const _PERIOD_MULTIPLIER: Record<string, number> = { weekly: 1, biweekly: 2, monthly: 4 }
+
+function ShoppingSection({
+  items, weekStart, planId, budget, period,
+}: {
+  items: ShoppingItem[]
+  weekStart: string
+  planId: string
+  budget: number | null
+  period?: string
+}) {
   const [checked, setChecked] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -818,6 +1035,8 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
     .filter((i) => !checked.has(_itemKey(i)))
     .reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
   const checkedCount = checked.size
+  const effectiveBudget = budget ? budget * (_PERIOD_MULTIPLIER[period ?? 'weekly'] ?? 1) : null
+  const overBudget = effectiveBudget !== null && total > effectiveBudget
 
   async function handleShare() {
     try {
@@ -860,6 +1079,18 @@ function ShoppingSection({ items, weekStart, planId }: { items: ShoppingItem[]; 
           <Text style={styles.totalOriginal}>
             Total original: R$ {total.toFixed(2).replace('.', ',')}
           </Text>
+        )}
+        {effectiveBudget !== null && (
+          <View style={styles.budgetRow}>
+            <Text style={styles.budgetLabel}>
+              Orçamento: R$ {effectiveBudget.toFixed(2).replace('.', ',')}
+            </Text>
+            <Text style={overBudget ? styles.budgetOver : styles.budgetOk}>
+              {overBudget
+                ? `↑ Ultrapassou R$ ${(total - effectiveBudget).toFixed(2).replace('.', ',')}`
+                : '✓ Dentro do orçamento'}
+            </Text>
+          </View>
         )}
         <Text style={styles.totalDisclaimer}>* Baseado em preços médios de supermercado</Text>
         <View style={styles.totalActions}>
@@ -1048,22 +1279,41 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   mealHeader: { gap: spacing['1'] },
-  breakfastChip: {
+  prepTabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.background.badge,
+    marginHorizontal: spacing['6'],
+    marginTop: spacing['3'],
+    borderRadius: radius.md,
+    padding: 4,
+    gap: 4,
+  },
+  prepTab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
-    alignSelf: 'flex-start',
-    paddingHorizontal: spacing['2'],
-    paddingVertical: 3,
-    borderRadius: radius.full,
-    backgroundColor: colors.brand.accent + '14',
-    borderWidth: 1,
-    borderColor: colors.brand.accent + '30',
+    paddingVertical: spacing['2'],
+    borderRadius: radius.sm,
   },
-  breakfastChipText: {
-    ...textStyles.caption,
-    color: colors.brand.accent,
+  prepTabActive: {
+    backgroundColor: colors.brand.primary,
+  },
+  prepTabText: {
+    ...textStyles.bodySmall,
+    color: colors.text.muted,
+  },
+  prepTabTextActive: {
     fontFamily: fontFamily.semiBold,
+    color: colors.text.inverse,
+  },
+  prepEmptyNote: {
+    ...textStyles.body,
+    color: colors.text.muted,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    lineHeight: 22,
   },
   mealDivider: {
     height: 1,
@@ -1376,6 +1626,29 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
+  },
+  budgetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: spacing['2'],
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+    marginTop: spacing['1'],
+  },
+  budgetLabel: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+  },
+  budgetOk: {
+    ...textStyles.caption,
+    color: colors.brand.primary,
+    fontFamily: fontFamily.semiBold,
+  },
+  budgetOver: {
+    ...textStyles.caption,
+    color: '#C0392B',
+    fontFamily: fontFamily.semiBold,
   },
   totalActions: {
     flexDirection: 'row',

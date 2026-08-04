@@ -17,6 +17,18 @@ import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { listPlans } from '../../src/services/plans'
 import type { WeeklyPlan } from '../../src/types/plans'
 
+const PERIOD_LABEL: Record<string, string> = {
+  weekly:   'Semana',
+  biweekly: 'Quinzena',
+  monthly:  'Mês',
+}
+
+const PERIOD_ICON: Record<string, string> = {
+  weekly:   'calendar-week-outline',
+  biweekly: 'calendar-range-outline',
+  monthly:  'calendar-month-outline',
+}
+
 const STATUS_LABEL: Record<string, string> = {
   done:       'Concluído',
   processing: 'Processando',
@@ -77,7 +89,7 @@ export default function HistoryScreen() {
           </View>
           <Text style={styles.emptyTitle}>Nenhum plano gerado ainda</Text>
           <Text style={styles.emptySubtitle}>
-            Gere seu primeiro cardápio semanal na tela inicial.
+            Gere seu primeiro cardápio na tela inicial.
           </Text>
         </View>
       ) : (
@@ -109,6 +121,8 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
   const label = STATUS_LABEL[plan.status] ?? plan.status
   const mealCount = plan.meals?.length ?? 0
   const canView = plan.status === 'done'
+  const periodLabel = PERIOD_LABEL[plan.period ?? 'weekly'] ?? 'Semana'
+  const periodIcon = PERIOD_ICON[plan.period ?? 'weekly'] ?? 'calendar-week-outline'
 
   return (
     <TouchableOpacity
@@ -117,11 +131,11 @@ function PlanCard({ plan }: { plan: WeeklyPlan }) {
       activeOpacity={canView ? 0.7 : 1}
     >
       <View style={[styles.cardIconWrap, { backgroundColor: color + '1A' }]}>
-        <MCI name="calendar-week-outline" size={20} color={color} />
+        <MCI name={periodIcon as any} size={20} color={color} />
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.cardDate}>Semana de {formatWeekStart(plan.week_start)}</Text>
+        <Text style={styles.cardDate}>{periodLabel} de {formatWeekStart(plan.week_start)}</Text>
         <View style={styles.cardMeta}>
           <View style={[styles.badge, { backgroundColor: color + '1A' }]}>
             <Text style={[styles.badgeText, { color }]}>{label}</Text>

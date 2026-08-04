@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -52,7 +52,11 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <View style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* Saudação */}
         <View>
@@ -156,6 +160,13 @@ export default function HomeScreen() {
               )
             })}
           </View>
+          {selectedPeriod !== 'weekly' && !!familyProfile?.weekly_budget_brl && (
+            <Text style={styles.budgetNote}>
+              {selectedPeriod === 'biweekly'
+                ? `Orçamento: R$ ${familyProfile.weekly_budget_brl.toFixed(2).replace('.', ',')} × 2 semanas = R$ ${(familyProfile.weekly_budget_brl * 2).toFixed(2).replace('.', ',')}`
+                : `Orçamento: R$ ${familyProfile.weekly_budget_brl.toFixed(2).replace('.', ',')} × 4 semanas = R$ ${(familyProfile.weekly_budget_brl * 4).toFixed(2).replace('.', ',')}`}
+            </Text>
+          )}
           {(
             [
               { label: 'Incluir café da manhã', value: includeBreakfast, setter: setIncludeBreakfast },
@@ -214,8 +225,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={styles.spacer} />
-
+      </ScrollView>
+      <View style={styles.footer}>
         <Button label="Sair da conta" onPress={signOut} variant="outline" />
       </View>
     </SafeAreaView>
@@ -225,9 +236,16 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background.screen },
   container: {
-    flex: 1,
     padding: spacing['6'],
     gap: spacing['5'],
+    paddingBottom: spacing['4'],
+  },
+  footer: {
+    paddingHorizontal: spacing['6'],
+    paddingVertical: spacing['4'],
+    borderTopWidth: 1,
+    borderTopColor: colors.border.light,
+    backgroundColor: colors.background.screen,
   },
 
   welcome: { ...textStyles.h2, color: colors.text.heading },
@@ -284,6 +302,15 @@ const styles = StyleSheet.create({
     ...textStyles.caption,
     color: colors.text.muted,
     textAlign: 'center',
+  },
+  budgetNote: {
+    ...textStyles.caption,
+    color: colors.brand.primary,
+    textAlign: 'center',
+    backgroundColor: colors.brand.primary + '12',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing['3'],
+    paddingVertical: spacing['2'],
   },
 
   periodRow: {
@@ -390,5 +417,4 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
 
-  spacer: { flex: 1 },
 })
