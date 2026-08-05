@@ -22,6 +22,7 @@ const PERIOD_OPTIONS: Array<{ value: PlanPeriod; label: string; premium: boolean
 export default function HomeScreen() {
   const { signOut, user } = useAuthStore()
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] ?? 'bem-vindo'
+  const isPremium = !!(user?.user_metadata?.is_premium)
   const [selectedPeriod, setSelectedPeriod] = useState<PlanPeriod>('weekly')
   const [includeBreakfast, setIncludeBreakfast] = useState(false)
   const [includeDinner, setIncludeDinner] = useState(false)
@@ -138,36 +139,33 @@ export default function HomeScreen() {
 
         {/* Seletor de período + Botão principal */}
         <View style={styles.generateSection}>
-          <View style={styles.periodRow}>
-            {PERIOD_OPTIONS.map((opt) => {
-              const active = selectedPeriod === opt.value
-              return (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[styles.periodOption, active && styles.periodOptionActive]}
-                  onPress={() => setSelectedPeriod(opt.value)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.periodLabel, active && styles.periodLabelActive]}>
-                    {opt.label}
-                  </Text>
-                  {opt.premium && (
-                    <Text style={[styles.premiumBadge, active && styles.premiumBadgeActive]}>
-                      PREMIUM
+          {isPremium && (
+            <View style={styles.periodRow}>
+              {PERIOD_OPTIONS.map((opt) => {
+                const active = selectedPeriod === opt.value
+                return (
+                  <TouchableOpacity
+                    key={opt.value}
+                    style={[styles.periodOption, active && styles.periodOptionActive]}
+                    onPress={() => setSelectedPeriod(opt.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.periodLabel, active && styles.periodLabelActive]}>
+                      {opt.label}
                     </Text>
-                  )}
-                </TouchableOpacity>
-              )
-            })}
-          </View>
-          {selectedPeriod !== 'weekly' && !!familyProfile?.weekly_budget_brl && (
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+          )}
+          {isPremium && selectedPeriod !== 'weekly' && !!familyProfile?.weekly_budget_brl && (
             <Text style={styles.budgetNote}>
               {selectedPeriod === 'biweekly'
                 ? `Orçamento: R$ ${familyProfile.weekly_budget_brl.toFixed(2).replace('.', ',')} × 2 semanas = R$ ${(familyProfile.weekly_budget_brl * 2).toFixed(2).replace('.', ',')}`
                 : `Orçamento: R$ ${familyProfile.weekly_budget_brl.toFixed(2).replace('.', ',')} × 4 semanas = R$ ${(familyProfile.weekly_budget_brl * 4).toFixed(2).replace('.', ',')}`}
             </Text>
           )}
-          {(
+          {isPremium && (
             [
               { label: 'Incluir café da manhã', value: includeBreakfast, setter: setIncludeBreakfast },
               { label: 'Incluir janta',         value: includeDinner,    setter: setIncludeDinner },
@@ -180,10 +178,7 @@ export default function HomeScreen() {
               onPress={() => setter(!value)}
               activeOpacity={0.7}
             >
-              <View style={styles.breakfastToggleInfo}>
-                <Text style={styles.breakfastToggleLabel}>{label}</Text>
-                <Text style={styles.premiumBadge}>PREMIUM</Text>
-              </View>
+              <Text style={styles.breakfastToggleLabel}>{label}</Text>
               <Switch
                 value={value}
                 onValueChange={setter}
