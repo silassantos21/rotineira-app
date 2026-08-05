@@ -279,111 +279,94 @@ function MealsSection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: str
 
 function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
   const [showPrep, setShowPrep] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   const members = Object.entries(meal.portions)
   const totalTime = (meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)
   const dayDate = getDayDate(meal.day, weekStart)
 
+  const collapsedSummary = [meal.breakfast, meal.lunch, meal.dinner]
+    .filter(Boolean)
+    .join(' · ')
+
   return (
     <>
       <View style={styles.card}>
-        {meal.breakfast && (
-          <>
-            <View style={styles.mealSectionHeader}>
-              <MCI name="coffee-outline" size={13} color={colors.brand.accent} />
-              <Text style={[styles.mealSectionLabel, { color: colors.brand.accent }]}>CAFÉ DA MANHÃ</Text>
-            </View>
-            <Text style={styles.lunchName}>{meal.breakfast}</Text>
-            {meal.breakfast_portions && Object.keys(meal.breakfast_portions).length > 0 && (
-              <View style={styles.portionList}>
-                {Object.entries(meal.breakfast_portions).map(([name, portion]) => (
-                  <View key={name} style={styles.portionRow}>
-                    <View style={styles.portionAvatar}>
-                      <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.portionMeta}>
-                      <Text style={styles.portionName}>{name}</Text>
-                    </View>
-                    <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-                    <View style={styles.portionBreakdown}>
-                      <Text style={styles.breakdownText}>
-                        P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
+        {/* Cabeçalho — sempre visível, toca para expandir/recolher */}
+        <TouchableOpacity
+          style={styles.cardHeaderRow}
+          onPress={() => setExpanded((v) => !v)}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.dayLabel}>
+              {dayDate ? `${meal.day.toUpperCase()}  ·  ${dayDate}` : meal.day.toUpperCase()}
+            </Text>
+            {!expanded && (
+              <Text style={styles.collapsedNames} numberOfLines={2}>
+                {collapsedSummary}
+              </Text>
             )}
-            <View style={styles.mealDivider} />
+          </View>
+          <Feather name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.text.muted} />
+        </TouchableOpacity>
+
+        {expanded && (
+          <>
+            {meal.breakfast && (
+              <>
+                <View style={styles.mealSectionHeader}>
+                  <MCI name="coffee-outline" size={13} color={colors.brand.accent} />
+                  <Text style={[styles.mealSectionLabel, { color: colors.brand.accent }]}>CAFÉ DA MANHÃ</Text>
+                </View>
+                <Text style={styles.lunchName}>{meal.breakfast}</Text>
+                {meal.breakfast_portions && Object.keys(meal.breakfast_portions).length > 0 && (
+                  <View style={styles.portionList}>
+                    {Object.entries(meal.breakfast_portions).map(([name, portion]) => (
+                      <View key={name} style={styles.portionRow}>
+                        <View style={styles.portionAvatar}>
+                          <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.portionMeta}>
+                          <Text style={styles.portionName}>{name}</Text>
+                        </View>
+                        <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+                        <View style={styles.portionBreakdown}>
+                          <Text style={styles.breakdownText}>
+                            P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                <View style={styles.mealDivider} />
+              </>
+            )}
+
             <View style={styles.mealSectionHeader}>
               <MCI name="silverware-fork-knife" size={13} color={colors.brand.secondary} />
               <Text style={styles.mealSectionLabel}>ALMOÇO</Text>
             </View>
-          </>
-        )}
-        <View style={styles.mealHeader}>
-          <Text style={styles.dayLabel}>
-            {dayDate ? `${meal.day}  ·  ${dayDate}` : meal.day}
-          </Text>
-          <Text style={styles.lunchName}>{meal.lunch}</Text>
-          {totalTime > 0 && (
-            <View style={styles.timeInfo}>
-              <Feather name="clock" size={12} color={colors.text.muted} />
-              <Text style={styles.timeInfoText}>{totalTime} min no total</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.portionList}>
-          {members.map(([name, portion]) => {
-            const altLunch = meal.member_lunches?.[name]
-            return (
-              <View key={name} style={styles.portionRow}>
-                <View style={styles.portionAvatar}>
-                  <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
-                </View>
-                <View style={styles.portionMeta}>
-                  <Text style={styles.portionName}>{name}</Text>
-                  {altLunch && (
-                    <Text style={styles.portionAltLunch}>{altLunch}</Text>
-                  )}
-                </View>
-                <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-                <View style={styles.portionBreakdown}>
-                  <Text style={styles.breakdownText}>
-                    P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                  </Text>
-                </View>
+            <Text style={styles.lunchName}>{meal.lunch}</Text>
+            {totalTime > 0 && (
+              <View style={styles.timeInfo}>
+                <Feather name="clock" size={12} color={colors.text.muted} />
+                <Text style={styles.timeInfoText}>{totalTime} min no total</Text>
               </View>
-            )
-          })}
-          <View style={styles.macroLegend}>
-            <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
-          </View>
-        </View>
-
-        {meal.dessert && (
-          <View style={styles.dessertChip}>
-            <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
-            <Text style={styles.dessertChipText}>{meal.dessert}</Text>
-          </View>
-        )}
-
-        {meal.dinner && (
-          <>
-            <View style={styles.mealDivider} />
-            <View style={styles.mealSectionHeader}>
-              <MCI name="silverware-fork-knife" size={13} color={colors.brand.secondary} />
-              <Text style={styles.mealSectionLabel}>JANTA</Text>
-            </View>
-            <Text style={styles.lunchName}>{meal.dinner}</Text>
-            {meal.dinner_portions && Object.keys(meal.dinner_portions).length > 0 && (
-              <View style={styles.portionList}>
-                {Object.entries(meal.dinner_portions).map(([name, portion]) => (
+            )}
+            <View style={styles.portionList}>
+              {members.map(([name, portion]) => {
+                const altLunch = meal.member_lunches?.[name]
+                return (
                   <View key={name} style={styles.portionRow}>
                     <View style={styles.portionAvatar}>
                       <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
                     </View>
                     <View style={styles.portionMeta}>
                       <Text style={styles.portionName}>{name}</Text>
+                      {altLunch && (
+                        <Text style={styles.portionAltLunch}>{altLunch}</Text>
+                      )}
                     </View>
                     <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
                     <View style={styles.portionBreakdown}>
@@ -392,81 +375,122 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                       </Text>
                     </View>
                   </View>
-                ))}
+                )
+              })}
+              <View style={styles.macroLegend}>
+                <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
               </View>
-            )}
-            {meal.dinner_dessert && (
+            </View>
+
+            {meal.dessert && (
               <View style={styles.dessertChip}>
                 <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
-                <Text style={styles.dessertChipText}>{meal.dinner_dessert}</Text>
+                <Text style={styles.dessertChipText}>{meal.dessert}</Text>
               </View>
             )}
+
+            {meal.dinner && (
+              <>
+                <View style={styles.mealDivider} />
+                <View style={styles.mealSectionHeader}>
+                  <MCI name="weather-night" size={13} color={colors.brand.secondary} />
+                  <Text style={styles.mealSectionLabel}>JANTA</Text>
+                </View>
+                <Text style={styles.lunchName}>{meal.dinner}</Text>
+                {meal.dinner_portions && Object.keys(meal.dinner_portions).length > 0 && (
+                  <View style={styles.portionList}>
+                    {Object.entries(meal.dinner_portions).map(([name, portion]) => (
+                      <View key={name} style={styles.portionRow}>
+                        <View style={styles.portionAvatar}>
+                          <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.portionMeta}>
+                          <Text style={styles.portionName}>{name}</Text>
+                        </View>
+                        <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+                        <View style={styles.portionBreakdown}>
+                          <Text style={styles.breakdownText}>
+                            P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {meal.dinner_dessert && (
+                  <View style={styles.dessertChip}>
+                    <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+                    <Text style={styles.dessertChipText}>{meal.dinner_dessert}</Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {(meal.breakfast_portions || meal.dinner_portions) && (() => {
+              const dailyRows = members
+                .map(([name, lunchP]) => {
+                  const bfP = meal.breakfast_portions?.[name]
+                  const dinP = meal.dinner_portions?.[name]
+                  if (!bfP && !dinP) return null
+                  return {
+                    name,
+                    total_g: lunchP.total_g + (bfP?.total_g ?? 0) + (dinP?.total_g ?? 0),
+                    protein_g: lunchP.protein_g + (bfP?.protein_g ?? 0) + (dinP?.protein_g ?? 0),
+                    carb_g: lunchP.carb_g + (bfP?.carb_g ?? 0) + (dinP?.carb_g ?? 0),
+                    vegetable_g: lunchP.vegetable_g + (bfP?.vegetable_g ?? 0) + (dinP?.vegetable_g ?? 0),
+                  }
+                })
+                .filter(Boolean) as { name: string; total_g: number; protein_g: number; carb_g: number; vegetable_g: number }[]
+              if (!dailyRows.length) return null
+              return (
+                <>
+                  <View style={styles.mealDivider} />
+                  <View style={styles.mealSectionHeader}>
+                    <Feather name="bar-chart-2" size={13} color={colors.text.muted} />
+                    <Text style={[styles.mealSectionLabel, { color: colors.text.muted }]}>TOTAL DO DIA</Text>
+                  </View>
+                  <View style={styles.portionList}>
+                    {dailyRows.map((row) => (
+                      <View key={row.name} style={styles.portionRow}>
+                        <View style={styles.portionAvatar}>
+                          <Text style={styles.portionAvatarText}>{row.name[0].toUpperCase()}</Text>
+                        </View>
+                        <View style={styles.portionMeta}>
+                          <Text style={styles.portionName}>{row.name}</Text>
+                        </View>
+                        <Text style={styles.portionWeight}>{Math.round(row.total_g)}g</Text>
+                        <View style={styles.portionBreakdown}>
+                          <Text style={styles.breakdownText}>
+                            P:{Math.round(row.protein_g)}g · C:{Math.round(row.carb_g)}g · V:{Math.round(row.vegetable_g)}g
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              )
+            })()}
+
+            <TouchableOpacity style={styles.prepButton} onPress={() => setShowPrep(true)} activeOpacity={0.7}>
+              <Feather name="search" size={15} color={colors.brand.primary} />
+              <Text style={styles.prepButtonText}>Ver modo de preparo</Text>
+            </TouchableOpacity>
           </>
         )}
-
-        {/* Resumo diário por pessoa quando há múltiplas refeições com porções */}
-        {(meal.breakfast_portions || meal.dinner_portions) && (() => {
-          const dailyRows = members
-            .map(([name, lunchP]) => {
-              const bfP = meal.breakfast_portions?.[name]
-              const dinP = meal.dinner_portions?.[name]
-              if (!bfP && !dinP) return null
-              return {
-                name,
-                total_g: lunchP.total_g + (bfP?.total_g ?? 0) + (dinP?.total_g ?? 0),
-                protein_g: lunchP.protein_g + (bfP?.protein_g ?? 0) + (dinP?.protein_g ?? 0),
-                carb_g: lunchP.carb_g + (bfP?.carb_g ?? 0) + (dinP?.carb_g ?? 0),
-                vegetable_g: lunchP.vegetable_g + (bfP?.vegetable_g ?? 0) + (dinP?.vegetable_g ?? 0),
-              }
-            })
-            .filter(Boolean) as { name: string; total_g: number; protein_g: number; carb_g: number; vegetable_g: number }[]
-          if (!dailyRows.length) return null
-          return (
-            <>
-              <View style={styles.mealDivider} />
-              <View style={styles.mealSectionHeader}>
-                <Feather name="bar-chart-2" size={13} color={colors.text.muted} />
-                <Text style={[styles.mealSectionLabel, { color: colors.text.muted }]}>TOTAL DO DIA</Text>
-              </View>
-              <View style={styles.portionList}>
-                {dailyRows.map((row) => (
-                  <View key={row.name} style={styles.portionRow}>
-                    <View style={styles.portionAvatar}>
-                      <Text style={styles.portionAvatarText}>{row.name[0].toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.portionMeta}>
-                      <Text style={styles.portionName}>{row.name}</Text>
-                    </View>
-                    <Text style={styles.portionWeight}>{Math.round(row.total_g)}g</Text>
-                    <View style={styles.portionBreakdown}>
-                      <Text style={styles.breakdownText}>
-                        P:{Math.round(row.protein_g)}g · C:{Math.round(row.carb_g)}g · V:{Math.round(row.vegetable_g)}g
-                      </Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </>
-          )
-        })()}
-
-        <TouchableOpacity style={styles.prepButton} onPress={() => setShowPrep(true)} activeOpacity={0.7}>
-          <Feather name="search" size={15} color={colors.brand.primary} />
-          <Text style={styles.prepButtonText}>Ver modo de preparo</Text>
-        </TouchableOpacity>
       </View>
 
-      <PrepModal meal={meal} visible={showPrep} onClose={() => setShowPrep(false)} />
+      <PrepModal meal={meal} weekStart={weekStart} visible={showPrep} onClose={() => setShowPrep(false)} />
     </>
   )
 }
 
-function PrepModal({ meal, visible, onClose }: { meal: DailyMeal; visible: boolean; onClose: () => void }) {
+function PrepModal({ meal, weekStart, visible, onClose }: { meal: DailyMeal; weekStart: string; visible: boolean; onClose: () => void }) {
   type PrepTab = 'cafe' | 'almoco' | 'janta'
   const hasCafe = !!meal.breakfast
   const hasJanta = !!meal.dinner
   const needsTabs = hasCafe || hasJanta
   const [activeTab, setActiveTab] = useState<PrepTab>('almoco')
+  const dayDate = getDayDate(meal.day, weekStart)
 
   useEffect(() => {
     if (visible) setActiveTab(hasCafe ? 'cafe' : 'almoco')
@@ -477,7 +501,9 @@ function PrepModal({ meal, visible, onClose }: { meal: DailyMeal; visible: boole
       <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
         <View style={styles.modalHeader}>
           <View style={styles.modalTitleBlock}>
-            <Text style={styles.modalDay}>{meal.day}</Text>
+            <Text style={styles.modalDay}>
+              {dayDate ? `${meal.day.toUpperCase()} · ${dayDate}` : meal.day.toUpperCase()}
+            </Text>
             {!needsTabs && <Text style={styles.modalTitle}>{meal.lunch}</Text>}
           </View>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -724,12 +750,18 @@ function AssemblySection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: 
   const hasDinner = meals.some(
     (m) => !!m.dinner && !!m.dinner_portions && Object.keys(m.dinner_portions).length > 0
   )
+  const hasBreakfast = meals.some(
+    (m) => !!m.breakfast && !!m.breakfast_portions && Object.keys(m.breakfast_portions ?? {}).length > 0
+  )
   const lunchTotal = meals.reduce((sum, m) => sum + (m.portions[selected]?.total_g ?? 0), 0)
   const dinnerTotal = hasDinner
     ? meals.reduce((sum, m) => sum + (m.dinner_portions?.[selected]?.total_g ?? 0), 0)
     : 0
-  const weekTotal = lunchTotal + dinnerTotal
-  const mealCount = meals.length * (hasDinner ? 2 : 1)
+  const breakfastTotal = hasBreakfast
+    ? meals.reduce((sum, m) => sum + (m.breakfast_portions?.[selected]?.total_g ?? 0), 0)
+    : 0
+  const weekTotal = lunchTotal + dinnerTotal + breakfastTotal
+  const mealCount = meals.length * (1 + (hasDinner ? 1 : 0) + (hasBreakfast ? 1 : 0))
 
   return (
     <View style={styles.section}>
@@ -773,29 +805,52 @@ function AssemblySection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: 
       {meals.map((meal) => {
         const portion = meal.portions[selected]
         const dinnerPortion = meal.dinner_portions?.[selected]
+        const breakfastPortion = meal.breakfast_portions?.[selected]
         if (!portion) return null
-        return <ContainerCard key={meal.day} meal={meal} portion={portion} dinnerPortion={dinnerPortion} weekStart={weekStart} />
+        return <ContainerCard key={meal.day} meal={meal} portion={portion} dinnerPortion={dinnerPortion} breakfastPortion={breakfastPortion} weekStart={weekStart} />
       })}
     </View>
   )
 }
 
-function ContainerCard({ meal, portion, dinnerPortion, weekStart }: {
-  meal: DailyMeal; portion: MealPortion; dinnerPortion?: MealPortion; weekStart: string
+function ContainerCard({ meal, portion, dinnerPortion, breakfastPortion, weekStart }: {
+  meal: DailyMeal; portion: MealPortion; dinnerPortion?: MealPortion; breakfastPortion?: MealPortion; weekStart: string
 }) {
   const dayDate = getDayDate(meal.day, weekStart)
+  const hasMultiple = !!dinnerPortion || !!breakfastPortion
   return (
     <View style={styles.containerCard}>
+      <Text style={styles.containerDay}>
+        {dayDate ? `${meal.day.toUpperCase()}  ·  ${dayDate}` : meal.day.toUpperCase()}
+      </Text>
+
+      {breakfastPortion && meal.breakfast && (
+        <>
+          <View style={styles.containerHeader}>
+            <View style={styles.containerInfo}>
+              <Text style={styles.containerRecipe}>{meal.breakfast}</Text>
+            </View>
+            <View style={styles.containerWeight}>
+              <Text style={styles.containerWeightValue}>{Math.round(breakfastPortion.total_g)}g</Text>
+              <Text style={styles.containerWeightLabel}>café</Text>
+            </View>
+          </View>
+          <View style={styles.barsWrapper}>
+            <ComponentBar label="Proteína" value={breakfastPortion.protein_g} total={breakfastPortion.total_g} color={colors.brand.accent} />
+            <ComponentBar label="Carboidrato" value={breakfastPortion.carb_g} total={breakfastPortion.total_g} color={colors.brand.primary} />
+            <ComponentBar label="Vegetal" value={breakfastPortion.vegetable_g} total={breakfastPortion.total_g} color={colors.brand.secondary} />
+          </View>
+          <View style={styles.mealDivider} />
+        </>
+      )}
+
       <View style={styles.containerHeader}>
         <View style={styles.containerInfo}>
-          <Text style={styles.containerDay}>
-            {dayDate ? `${meal.day}  ·  ${dayDate}` : meal.day}
-          </Text>
           <Text style={styles.containerRecipe}>{meal.lunch}</Text>
         </View>
         <View style={styles.containerWeight}>
           <Text style={styles.containerWeightValue}>{Math.round(portion.total_g)}g</Text>
-          <Text style={styles.containerWeightLabel}>{dinnerPortion ? 'almoço' : '1 marmita'}</Text>
+          <Text style={styles.containerWeightLabel}>{hasMultiple ? 'almoço' : '1 marmita'}</Text>
         </View>
       </View>
       <View style={styles.barsWrapper}>
@@ -803,6 +858,7 @@ function ContainerCard({ meal, portion, dinnerPortion, weekStart }: {
         <ComponentBar label="Carboidrato" value={portion.carb_g} total={portion.total_g} color={colors.brand.primary} />
         <ComponentBar label="Vegetal" value={portion.vegetable_g} total={portion.total_g} color={colors.brand.secondary} />
       </View>
+
       {dinnerPortion && meal.dinner && (
         <>
           <View style={styles.mealDivider} />
@@ -1036,7 +1092,6 @@ function ShoppingSection({
     .reduce((sum, i) => sum + (i.price_estimate_brl ?? 0), 0)
   const checkedCount = checked.size
   const effectiveBudget = budget ? budget * (_PERIOD_MULTIPLIER[period ?? 'weekly'] ?? 1) : null
-  const overBudget = effectiveBudget !== null && total > effectiveBudget
 
   async function handleShare() {
     try {
@@ -1081,16 +1136,9 @@ function ShoppingSection({
           </Text>
         )}
         {effectiveBudget !== null && (
-          <View style={styles.budgetRow}>
-            <Text style={styles.budgetLabel}>
-              Orçamento: R$ {effectiveBudget.toFixed(2).replace('.', ',')}
-            </Text>
-            <Text style={overBudget ? styles.budgetOver : styles.budgetOk}>
-              {overBudget
-                ? `↑ Ultrapassou R$ ${(total - effectiveBudget).toFixed(2).replace('.', ',')}`
-                : '✓ Dentro do orçamento'}
-            </Text>
-          </View>
+          <Text style={styles.budgetLabel}>
+            Orçamento: R$ {effectiveBudget.toFixed(2).replace('.', ',')}
+          </Text>
         )}
         <Text style={styles.totalDisclaimer}>* Baseado em preços médios de supermercado</Text>
         <View style={styles.totalActions}>
@@ -1278,7 +1326,17 @@ const styles = StyleSheet.create({
     gap: spacing['3'],
     ...shadow.card,
   },
-  mealHeader: { gap: spacing['1'] },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  collapsedNames: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    marginTop: 3,
+    lineHeight: 18,
+  },
   prepTabBar: {
     flexDirection: 'row',
     backgroundColor: colors.background.badge,
@@ -1627,28 +1685,10 @@ const styles = StyleSheet.create({
     color: colors.text.muted,
     textAlign: 'center',
   },
-  budgetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: spacing['2'],
-    borderTopWidth: 1,
-    borderTopColor: colors.border.light,
-    marginTop: spacing['1'],
-  },
   budgetLabel: {
     ...textStyles.caption,
     color: colors.text.muted,
-  },
-  budgetOk: {
-    ...textStyles.caption,
-    color: colors.brand.primary,
-    fontFamily: fontFamily.semiBold,
-  },
-  budgetOver: {
-    ...textStyles.caption,
-    color: '#C0392B',
-    fontFamily: fontFamily.semiBold,
+    textAlign: 'center',
   },
   totalActions: {
     flexDirection: 'row',
