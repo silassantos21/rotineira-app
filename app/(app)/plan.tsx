@@ -623,9 +623,36 @@ function PrepModal({ meal, weekStart, visible, onClose }: { meal: DailyMeal; wee
           {activeTab === 'janta' && (
             <>
               <Text style={styles.modalTitle}>{meal.dinner}</Text>
-              <Text style={styles.prepEmptyNote}>
-                Utilize os mesmos utensílios do almoço. A janta é mais leve — reduza as quantidades e prefira cozimentos rápidos como grelhado ou salteado.
-              </Text>
+              {meal.utensils?.length > 0 && (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Utensílios</Text>
+                  <View style={styles.utensilsGrid}>
+                    {meal.utensils.map((u, i) => (
+                      <View key={i} style={styles.utensilChip}>
+                        <Feather name="tool" size={12} color={colors.brand.primary} />
+                        <Text style={styles.utensilText}>{u}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+              {meal.dinner_instructions && meal.dinner_instructions.length > 0 ? (
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>Modo de Preparo</Text>
+                  {meal.dinner_instructions.map((step, i) => (
+                    <View key={i} style={styles.stepRow}>
+                      <View style={styles.stepNumber}>
+                        <Text style={styles.stepNumberText}>{i + 1}</Text>
+                      </View>
+                      <Text style={styles.stepText}>{step}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={styles.prepEmptyNote}>
+                  Sem instruções de preparo da janta neste cardápio.
+                </Text>
+              )}
             </>
           )}
         </ScrollView>

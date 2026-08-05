@@ -27,6 +27,7 @@ class DailyMeal(BaseModel):
     member_lunches: Optional[Dict[str, str]] = None
     portions: Dict[str, MealPortion]
     dinner: Optional[str] = None
+    dinner_instructions: Optional[List[str]] = None
     dinner_portions: Optional[Dict[str, MealPortion]] = None
     dessert: Optional[str] = None
     dinner_dessert: Optional[str] = None

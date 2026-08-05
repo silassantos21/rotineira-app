@@ -22,6 +22,7 @@ class DailyMealAI(BaseModel):
     member_lunches: Dict[str, str] = {}
     portions: Dict[str, MealPortionAI]
     dinner: Optional[str] = None
+    dinner_instructions: Optional[List[str]] = None
     dinner_portions: Optional[Dict[str, MealPortionAI]] = None
     dessert: Optional[str] = None
     dinner_dessert: Optional[str] = None
@@ -63,6 +64,7 @@ def _build_schema_example(
     ]
     if include_dinner:
         meal_fields.append('      "dinner": "Sopa de legumes com torrada integral"')
+        meal_fields.append('      "dinner_instructions": ["Passo 1: descrição clara e objetiva", "Passo 2: descrição clara e objetiva"]')
         meal_fields.append(
             '      "dinner_portions": {"NomeDoMembro": {"protein_g": 100, "carb_g": 80, "vegetable_g": 60, "total_g": 240}}'
         )
@@ -157,8 +159,10 @@ def _build_prompt(
         budget_rule = (
             f"ORÇAMENTO MÁXIMO PARA O PERÍODO: R$ {budget_total:.2f} "
             f"({multiplier}x o orçamento semanal de R$ {budget:.2f}). "
-            "Escolha ingredientes e proteínas que mantenham o total estimado da lista de compras "
-            "abaixo desse valor. Prefira cortes e produtos mais acessíveis quando necessário.\n\n"
+            "O valor total da lista de compras DEVE ser menor ou igual a esse limite — "
+            "isso é uma restrição obrigatória, não uma sugestão. "
+            "Prefira cortes acessíveis de proteína (coxa de frango, carne moída, ovo, tilápia) "
+            "e ingredientes de época. Se necessário, reduza quantidades antes de ultrapassar o orçamento.\n\n"
         )
     else:
         budget_rule = ""
@@ -174,7 +178,9 @@ def _build_prompt(
     ) if include_breakfast else ""
 
     dinner_rule = (
-        "JANTA (Premium): Para cada dia, inclua campos 'dinner' (nome do prato da janta) e "
+        "JANTA (Premium): Para cada dia, inclua campos 'dinner' (nome do prato da janta), "
+        "'dinner_instructions' (lista de 2 a 4 passos objetivos de preparo específicos para a janta — "
+        "NÃO repita as instruções do almoço; a janta tem seu próprio preparo) e "
         "'dinner_portions' (mapa nome→porção no mesmo formato de 'portions'). "
         "A janta deve ser mais leve que o almoço — use ~25%% das calorias diárias. "
         "Aplique as mesmas regras de apetite e restrições alimentares dos membros. "
@@ -294,6 +300,12 @@ class _MockProvider:
                 }
             if include_dinner:
                 meal["dinner"] = "Sopa de legumes com torrada"
+                meal["dinner_instructions"] = [
+                    "Refogue cebola e alho em azeite por 2 min.",
+                    "Adicione legumes cortados (cenoura, batata, abobrinha) e caldo de legumes.",
+                    "Cozinhe em fogo médio por 15 min até ficarem macios.",
+                    "Tempere com sal e sirva com torrada integral.",
+                ]
                 meal["dinner_portions"] = {
                     "Membro 1": {"protein_g": 100, "carb_g": 80, "vegetable_g": 60, "total_g": 240}
                 }

@@ -16,6 +16,7 @@ export interface DailyMeal {
   member_lunches?: Record<string, string>
   portions: Record<string, MealPortion>
   dinner?: string
+  dinner_instructions?: string[]
   dinner_portions?: Record<string, MealPortion>
   dessert?: string
   dinner_dessert?: string
