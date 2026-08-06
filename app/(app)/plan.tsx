@@ -40,6 +40,7 @@ export default function PlanScreen() {
   const [activeTab, setActiveTab] = useState<Tab>('cardapio')
   const [showAdaptModal, setShowAdaptModal] = useState(false)
   const { user } = useAuthStore()
+  const isPremium = !!(user?.user_metadata?.is_premium)
 
   const { data: plan, isError } = useQuery<WeeklyPlan>({
     queryKey: ['plan', id],
@@ -99,14 +100,14 @@ export default function PlanScreen() {
                 <MealsSection meals={plan.meals} weekStart={plan.week_start} />
                 <TouchableOpacity
                   style={styles.adaptButton}
-                  onPress={() => setShowAdaptModal(true)}
+                  onPress={() => isPremium ? setShowAdaptModal(true) : router.push('/paywall')}
                   activeOpacity={0.7}
                 >
                   <Feather name="refresh-cw" size={15} color={colors.brand.primary} />
                   <Text style={styles.adaptButtonText}>Adaptar cardápio com IA</Text>
                 </TouchableOpacity>
                 <Text style={styles.adaptHint}>
-                  Descreva o que quer mudar e a IA ajusta o plano
+                  {isPremium ? 'Descreva o que quer mudar e a IA ajusta o plano' : 'Recurso Premium — toque para saber mais'}
                 </Text>
               </>
             )}
