@@ -29,8 +29,13 @@ import {
   type FamilyMember,
 } from '../../src/types/family'
 
+const FREE_MEMBER_LIMIT = 3
+const PREMIUM_MEMBER_LIMIT = 10
+
 export default function FamilyScreen() {
   const { user } = useAuthStore()
+  const isPremium = !!(user?.user_metadata?.is_premium)
+  const memberLimit = isPremium ? PREMIUM_MEMBER_LIMIT : FREE_MEMBER_LIMIT
   const { profileId, members, loadProfile, startAddMember, startEditMember, removeMember } =
     useFamilyStore()
   const [isLoading, setIsLoading] = useState(false)
@@ -74,6 +79,15 @@ export default function FamilyScreen() {
   })
 
   function handleAdd() {
+    if (members.length >= memberLimit) {
+      Alert.alert(
+        'Limite atingido',
+        isPremium
+          ? `Planos premium suportam até ${PREMIUM_MEMBER_LIMIT} membros.`
+          : `O plano gratuito suporta até ${FREE_MEMBER_LIMIT} membros. Faça upgrade para adicionar mais.`,
+      )
+      return
+    }
     startAddMember()
     router.push('/member')
   }
@@ -127,7 +141,7 @@ export default function FamilyScreen() {
                   Adicione os membros da família para gerar o cardápio semanal com as
                   porções certas para cada um.
                 </Text>
-                <Button label="Adicionar primeiro membro" onPress={handleAdd} />
+                <Button label="Adicionar primeiro membro" onPress={handleAdd} disabled={members.length >= memberLimit} />
               </View>
             ) : (
               <>
@@ -165,10 +179,11 @@ export default function FamilyScreen() {
                   />
                 ))}
                 <Button
-                  label="Adicionar membro"
+                  label={members.length >= memberLimit ? `Limite de ${memberLimit} membros atingido` : 'Adicionar membro'}
                   variant="outline"
                   icon={<Feather name="plus" size={18} color={colors.brand.primary} />}
                   onPress={handleAdd}
+                  disabled={members.length >= memberLimit}
                 />
               </>
             )}
