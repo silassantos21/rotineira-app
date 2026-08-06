@@ -75,14 +75,14 @@ export default function RegisterScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: fullName.trim() } },
+      options: {
+        data: { full_name: fullName.trim() },
+        emailRedirectTo: 'rotineira://',
+      },
     })
     if (error) {
       setSubmitError(traduzeErro(error.message))
     } else if (data.session) {
-      // TODO: confirmação por e-mail desativada temporariamente para testes.
-      // Antes do lançamento: Supabase → Authentication → Providers → Email → ativar "Confirm email"
-      // e remover este bloco (deixar apenas o else abaixo).
       router.replace('/(app)')
     } else {
       setSuccess(true)

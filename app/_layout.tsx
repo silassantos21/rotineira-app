@@ -18,10 +18,19 @@ import '../global.css'
 async function handleAuthDeepLink(url: string) {
   try {
     const parsed = new URL(url)
+
+    // Confirmação de e-mail: rotineira://?token_hash=...&type=signup
     const token_hash = parsed.searchParams.get('token_hash')
     const type = parsed.searchParams.get('type')
     if (token_hash && type) {
       await supabase.auth.verifyOtp({ token_hash, type: type as any })
+      return
+    }
+
+    // OAuth PKCE callback (Google/Apple): rotineira://login?code=...
+    const code = parsed.searchParams.get('code')
+    if (code) {
+      await supabase.auth.exchangeCodeForSession(code)
     }
   } catch {}
 }
