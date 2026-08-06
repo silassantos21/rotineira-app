@@ -50,7 +50,7 @@ def run_generate_weekly_plan(
         plan_res = sb.table("weekly_plans").select("period").eq("id", plan_id).maybe_single().execute()
         period = (plan_res.data or {}).get("period", "weekly")
 
-        from app.agents.cardapio_generator import CardapioGeneratorAgent
+        from app.agents.cardapio_generator import CardapioGeneratorAgent, estimate_plan_cost
         agent = CardapioGeneratorAgent(
             gemini_api_key=settings.GEMINI_API_KEY,
             openai_api_key=settings.OPENAI_API_KEY,
@@ -63,6 +63,42 @@ def run_generate_weekly_plan(
             include_dinner=include_dinner,
             include_dessert=include_dessert,
         )
+
+        # Validação de orçamento pós-geração: 3 tentativas LLM + enforcement hard garantido
+        budget = profile_res.data.get("weekly_budget_brl")
+        if budget and not settings.MOCK_AI:
+            multiplier = {"weekly": 1, "biweekly": 2, "monthly": 4}.get(period, 1)
+            budget_total = budget * multiplier
+            from app.agents.cardapio_generator import enforce_budget_hard
+            from app.agents.cardapio_adaptacao import CardapioAdaptacaoAgent
+            adapt_agent = CardapioAdaptacaoAgent(
+                gemini_api_key=settings.GEMINI_API_KEY,
+                openai_api_key=settings.OPENAI_API_KEY,
+                mock=False,
+            )
+            for attempt in range(3):
+                total_cost = estimate_plan_cost(result.shopping_list)
+                if total_cost <= budget_total:
+                    break
+                feedback = (
+                    f"ATENÇÃO: o plano está R$ {total_cost - budget_total:.2f} ACIMA do orçamento. "
+                    f"Total atual: R$ {total_cost:.2f}. Limite máximo: R$ {budget_total:.2f}. "
+                    "É OBRIGATÓRIO que a soma de todos os price_estimate_brl fique abaixo de "
+                    f"R$ {budget_total:.2f}. "
+                    "Ações necessárias: (1) substitua peito de frango por coxa/sobrecoxa, "
+                    "salmão por tilápia, cortes nobres por carne moída ou patinho; "
+                    "(2) reduza quantidades de todos os itens; "
+                    "(3) elimine ingredientes opcionais. "
+                    "Some os preços item a item antes de responder e confirme que o total está abaixo do limite."
+                )
+                current_plan = {
+                    "meals": [m.model_dump() for m in result.meals],
+                    "shopping_list": [s.model_dump() for s in result.shopping_list],
+                }
+                result = adapt_agent.adapt(current_plan, profile_res.data, feedback)
+
+            # Enforcement hard: se após 3 tentativas ainda acima, escala preços em código
+            result = enforce_budget_hard(result, budget_total)
 
         sb.table("weekly_plans").update({
             "status": "done",

@@ -377,17 +377,13 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                   </View>
                 )
               })}
-              <View style={styles.macroLegend}>
-                <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
-              </View>
+              {meal.dessert && (
+                <View style={styles.dessertChip}>
+                  <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+                  <Text style={styles.dessertChipText}>{meal.dessert}</Text>
+                </View>
+              )}
             </View>
-
-            {meal.dessert && (
-              <View style={styles.dessertChip}>
-                <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
-                <Text style={styles.dessertChipText}>{meal.dessert}</Text>
-              </View>
-            )}
 
             {meal.dinner && (
               <>
@@ -470,6 +466,10 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                 </>
               )
             })()}
+
+            <View style={styles.macroLegend}>
+              <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
+            </View>
 
             <TouchableOpacity style={styles.prepButton} onPress={() => setShowPrep(true)} activeOpacity={0.7}>
               <Feather name="search" size={15} color={colors.brand.primary} />

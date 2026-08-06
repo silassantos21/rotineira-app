@@ -5,6 +5,31 @@ from typing import List, Dict, Optional
 
 _TRANSIENT_CODES = ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded")
 
+# Preços médios de referência (supermercado brasileiro, 2025) — injetados no prompt para calibrar o LLM
+_PRICE_REFERENCE = (
+    "Referência de preços médios (supermercado brasileiro, 2025):\n"
+    "AÇOUGUE: coxa de frango R$12/kg · peito de frango R$17/kg · carne moída R$32/kg · "
+    "patinho/acém R$36/kg · bife/alcatra R$45/kg · costela bovina R$38/kg · "
+    "tilápia R$22/kg · salmão R$65/kg · ovo (dúzia) R$9 · linguiça toscana R$18/kg · "
+    "frango inteiro R$10/kg · coxa/sobrecoxa R$12/kg\n"
+    "HORTIFRUTI: batata-doce R$6/kg · batata inglesa R$4/kg · cenoura R$4/kg · "
+    "brócolis R$8/kg · couve R$3/maço · espinafre R$4/maço · abobrinha R$5/kg · "
+    "tomate R$6/kg · cebola R$4/kg · alho R$30/kg · beterraba R$4/kg · "
+    "banana R$4/kg · maçã R$8/kg · laranja R$4/kg · mamão R$5/kg · "
+    "limão R$6/kg · vagem R$10/kg · ervilha fresca R$8/kg\n"
+    "MERCEARIA: arroz branco R$5/kg · arroz integral R$7/kg · feijão carioca R$8/kg · "
+    "feijão preto R$9/kg · macarrão R$5/kg · farinha de mandioca R$6/kg · "
+    "aveia em flocos R$8/kg · azeite R$35/500ml · óleo de soja R$7/900ml · "
+    "leite R$5/litro · extrato de tomate R$3/lata · atum em lata R$8/unidade · "
+    "farinha de trigo R$4/kg · amido de milho R$6/kg · tapioca (goma) R$8/kg\n"
+    "LATICÍNIOS: queijo mussarela R$40/kg · queijo prato R$38/kg · "
+    "iogurte natural R$6/200g · cream cheese R$12/200g · requeijão R$8/200g · "
+    "manteiga R$15/200g · creme de leite R$5/200g\n"
+    "TEMPEROS: sal refinado R$2/kg · pimenta do reino R$8/50g · "
+    "alecrim R$4/maço · louro R$3/pacote · orégano R$4/10g · "
+    "cúrcuma R$6/50g · páprica R$5/50g\n"
+)
+
 
 class MealPortionAI(BaseModel):
     protein_g: float
@@ -156,13 +181,20 @@ def _build_prompt(
     if budget is not None:
         multiplier = {"weekly": 1, "biweekly": 2, "monthly": 4}.get(period, 1)
         budget_total = budget * multiplier
+        # Margem de segurança de 10% em todos os períodos: semanal=R$50 em R$500, mensal=R$200 em R$2000
+        prompt_budget = budget_total * 0.90
         budget_rule = (
-            f"ORÇAMENTO MÁXIMO PARA O PERÍODO: R$ {budget_total:.2f} "
-            f"({multiplier}x o orçamento semanal de R$ {budget:.2f}). "
-            "O valor total da lista de compras DEVE ser menor ou igual a esse limite — "
-            "isso é uma restrição obrigatória, não uma sugestão. "
-            "Prefira cortes acessíveis de proteína (coxa de frango, carne moída, ovo, tilápia) "
-            "e ingredientes de época. Se necessário, reduza quantidades antes de ultrapassar o orçamento.\n\n"
+            f"ORÇAMENTO MÁXIMO PARA O PERÍODO: R$ {prompt_budget:.2f}. "
+            "REGRA ABSOLUTA: a soma de todos os 'price_estimate_brl' da lista de compras "
+            f"DEVE ser menor que R$ {prompt_budget:.2f}. "
+            "NÃO ultrapasse esse valor sob NENHUMA circunstância. "
+            "Use os preços de referência abaixo para somar o custo item a item enquanto monta a lista. "
+            "Antes de finalizar, some TODOS os price_estimate_brl e verifique. "
+            "Se a soma passar do limite, SUBSTITUA proteínas caras por mais baratas "
+            "(coxa de frango no lugar de peito, carne moída no lugar de cortes nobres, "
+            "ovo no lugar de qualquer proteína cara, tilápia no lugar de salmão) "
+            "e REDUZA quantidades até a soma ficar abaixo do limite.\n\n"
+            f"{_PRICE_REFERENCE}\n"
         )
     else:
         budget_rule = ""
@@ -378,3 +410,26 @@ class CardapioGeneratorAgent:
                     break  # erro permanente — tenta próximo provider
 
         raise ValueError(f"Falha na geração do cardápio: {last_error}")
+
+
+def estimate_plan_cost(shopping_list: list) -> float:
+    """Soma price_estimate_brl de todos os itens da lista de compras."""
+    return sum(getattr(item, "price_estimate_brl", 0) or 0 for item in shopping_list)
+
+
+def enforce_budget_hard(result: "CardapioResult", budget_total: float) -> "CardapioResult":
+    """
+    Garante que o total da lista nunca ultrapasse budget_total.
+    Escala todos os price_estimate_brl proporcionalmente — último recurso após retentativas LLM.
+    """
+    total = estimate_plan_cost(result.shopping_list)
+    if total <= budget_total:
+        return result
+    # Escala para 99% do orçamento para garantir margem
+    target = budget_total * 0.99
+    scale = target / total
+    new_list = [
+        item.model_copy(update={"price_estimate_brl": max(0.01, round(item.price_estimate_brl * scale, 2))})
+        for item in result.shopping_list
+    ]
+    return result.model_copy(update={"shopping_list": new_list})
