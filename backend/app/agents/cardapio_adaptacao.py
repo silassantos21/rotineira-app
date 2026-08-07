@@ -4,7 +4,7 @@ from pydantic import ValidationError
 from app.agents.cardapio_generator import (
     _TRANSIENT_CODES,
     CardapioResult,
-    _SCHEMA_EXAMPLE,
+    _build_schema_example,
     _GeminiProvider,
     _OpenAIProvider,
     _MockProvider,
@@ -41,7 +41,7 @@ def _build_adapt_prompt(current_plan: dict, family_profile: dict, feedback: str)
         cardapio_json=json.dumps(cardapio, ensure_ascii=False),
         perfil_json=json.dumps(family_profile, ensure_ascii=False),
         feedback=feedback,
-        schema_json=_SCHEMA_EXAMPLE,
+        schema_json=_build_schema_example(include_breakfast=True, include_dinner=True, include_dessert=True),
     )
 
 
