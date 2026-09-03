@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -18,6 +19,7 @@ import { Button } from '../../src/components/ui/Button'
 import { getCurrentOffering, purchasePackage, restorePurchases } from '../../src/services/revenue'
 import { isExpoGo } from '../../src/services/notifications'
 import { useSubscriptionStore } from '../../src/store/subscription'
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '../../src/lib/legal'
 import type { PurchasesPackage } from 'react-native-purchases'
 
 type MCIName = React.ComponentProps<typeof MCI>['name']
@@ -224,6 +226,15 @@ export default function PaywallScreen() {
           <Text style={styles.legalText}>
             A assinatura é renovada automaticamente. Cancele quando quiser pela loja de apps.
           </Text>
+          <View style={styles.legalLinksRow}>
+            <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+              Política de Privacidade
+            </Text>
+            <Text style={styles.legalDivider}>·</Text>
+            <Text style={styles.legalLink} onPress={() => Linking.openURL(TERMS_OF_USE_URL)}>
+              Termos de Uso
+            </Text>
+          </View>
         </View>
 
       </ScrollView>
@@ -407,5 +418,20 @@ const styles = StyleSheet.create({
     color: colors.text.muted,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing['2'],
+  },
+  legalLink: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    textDecorationLine: 'underline',
+  },
+  legalDivider: {
+    ...textStyles.caption,
+    color: colors.text.muted,
   },
 })

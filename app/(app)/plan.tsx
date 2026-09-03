@@ -13,9 +13,6 @@ import {
   Image,
 } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as Print from 'expo-print'
-import * as Sharing from 'expo-sharing'
-import * as FileSystem from 'expo-file-system/legacy'
 import { Stack, useLocalSearchParams, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -26,6 +23,7 @@ import { spacing, radius, shadow } from '../../src/theme/spacing'
 import { Button } from '../../src/components/ui/Button'
 import { getPlan, adaptPlan } from '../../src/services/plans'
 import { fetchFamilyProfile } from '../../src/services/family'
+import { exportHtmlAsPdf } from '../../src/services/pdf'
 import { useAuthStore } from '../../src/store/auth'
 import type { FamilyProfile } from '../../src/types/family'
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from '../../src/lib/speech'
@@ -39,6 +37,7 @@ export default function PlanScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const [activeTab, setActiveTab] = useState<Tab>('cardapio')
   const [showAdaptModal, setShowAdaptModal] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
   const { user } = useAuthStore()
   const isPremium = !!(user?.user_metadata?.is_premium)
 
@@ -100,6 +99,14 @@ export default function PlanScreen() {
                 <MealsSection meals={plan.meals} weekStart={plan.week_start} />
                 <TouchableOpacity
                   style={styles.adaptButton}
+                  onPress={() => setShowPrintModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Feather name="printer" size={15} color={colors.brand.primary} />
+                  <Text style={styles.adaptButtonText}>Imprimir cardápio</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.adaptButton}
                   onPress={() => isPremium ? setShowAdaptModal(true) : router.push('/paywall')}
                   activeOpacity={0.7}
                 >
@@ -130,6 +137,13 @@ export default function PlanScreen() {
             isLoading={adaptMutation.isPending}
             onClose={() => setShowAdaptModal(false)}
             onSubmit={(feedback) => adaptMutation.mutate(feedback)}
+          />
+
+          <PrintScopeModal
+            visible={showPrintModal}
+            meals={plan.meals}
+            weekStart={plan.week_start}
+            onClose={() => setShowPrintModal(false)}
           />
         </>
       )}
@@ -281,13 +295,33 @@ function MealsSection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: str
 function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
   const [showPrep, setShowPrep] = useState(false)
   const [expanded, setExpanded] = useState(true)
-  const members = Object.entries(meal.portions)
+  const [activeMember, setActiveMember] = useState<string>('resumo')
+  const memberNames = Object.keys(meal.portions)
   const totalTime = (meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)
   const dayDate = getDayDate(meal.day, weekStart)
 
   const collapsedSummary = [meal.breakfast, meal.lunch, meal.dinner]
     .filter(Boolean)
     .join(' · ')
+
+  const dailyRows = memberNames
+    .map((name) => {
+      const lunchP = meal.portions[name]
+      const bfP = meal.breakfast_portions?.[name]
+      const dinP = meal.dinner_portions?.[name]
+      return {
+        name,
+        total_g: lunchP.total_g + (bfP?.total_g ?? 0) + (dinP?.total_g ?? 0),
+        protein_g: lunchP.protein_g + (bfP?.protein_g ?? 0) + (dinP?.protein_g ?? 0),
+        carb_g: lunchP.carb_g + (bfP?.carb_g ?? 0) + (dinP?.carb_g ?? 0),
+        vegetable_g: lunchP.vegetable_g + (bfP?.vegetable_g ?? 0) + (dinP?.vegetable_g ?? 0),
+      }
+    })
+
+  const selectedBreakfast = activeMember !== 'resumo' ? meal.breakfast_portions?.[activeMember] : undefined
+  const selectedLunch = activeMember !== 'resumo' ? meal.portions[activeMember] : undefined
+  const selectedDinner = activeMember !== 'resumo' ? meal.dinner_portions?.[activeMember] : undefined
+  const selectedAltLunch = activeMember !== 'resumo' ? meal.member_lunches?.[activeMember] : undefined
 
   return (
     <>
@@ -320,26 +354,6 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                   <Text style={[styles.mealSectionLabel, { color: colors.brand.accent }]}>CAFÉ DA MANHÃ</Text>
                 </View>
                 <Text style={styles.lunchName}>{meal.breakfast}</Text>
-                {meal.breakfast_portions && Object.keys(meal.breakfast_portions).length > 0 && (
-                  <View style={styles.portionList}>
-                    {Object.entries(meal.breakfast_portions).map(([name, portion]) => (
-                      <View key={name} style={styles.portionRow}>
-                        <View style={styles.portionAvatar}>
-                          <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
-                        </View>
-                        <View style={styles.portionMeta}>
-                          <Text style={styles.portionName}>{name}</Text>
-                        </View>
-                        <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-                        <View style={styles.portionBreakdown}>
-                          <Text style={styles.breakdownText}>
-                            P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
                 <View style={styles.mealDivider} />
               </>
             )}
@@ -355,36 +369,12 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                 <Text style={styles.timeInfoText}>{totalTime} min no total</Text>
               </View>
             )}
-            <View style={styles.portionList}>
-              {members.map(([name, portion]) => {
-                const altLunch = meal.member_lunches?.[name]
-                return (
-                  <View key={name} style={styles.portionRow}>
-                    <View style={styles.portionAvatar}>
-                      <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.portionMeta}>
-                      <Text style={styles.portionName}>{name}</Text>
-                      {altLunch && (
-                        <Text style={styles.portionAltLunch}>{altLunch}</Text>
-                      )}
-                    </View>
-                    <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-                    <View style={styles.portionBreakdown}>
-                      <Text style={styles.breakdownText}>
-                        P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                      </Text>
-                    </View>
-                  </View>
-                )
-              })}
-              {meal.dessert && (
-                <View style={styles.dessertChip}>
-                  <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
-                  <Text style={styles.dessertChipText}>{meal.dessert}</Text>
-                </View>
-              )}
-            </View>
+            {meal.dessert && (
+              <View style={styles.dessertChip}>
+                <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
+                <Text style={styles.dessertChipText}>{meal.dessert}</Text>
+              </View>
+            )}
 
             {meal.dinner && (
               <>
@@ -394,26 +384,6 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
                   <Text style={styles.mealSectionLabel}>JANTA</Text>
                 </View>
                 <Text style={styles.lunchName}>{meal.dinner}</Text>
-                {meal.dinner_portions && Object.keys(meal.dinner_portions).length > 0 && (
-                  <View style={styles.portionList}>
-                    {Object.entries(meal.dinner_portions).map(([name, portion]) => (
-                      <View key={name} style={styles.portionRow}>
-                        <View style={styles.portionAvatar}>
-                          <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
-                        </View>
-                        <View style={styles.portionMeta}>
-                          <Text style={styles.portionName}>{name}</Text>
-                        </View>
-                        <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
-                        <View style={styles.portionBreakdown}>
-                          <Text style={styles.breakdownText}>
-                            P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
                 {meal.dinner_dessert && (
                   <View style={styles.dessertChip}>
                     <MCI name="ice-cream" size={13} color={colors.brand.secondary} />
@@ -423,50 +393,61 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
               </>
             )}
 
-            {(meal.breakfast_portions || meal.dinner_portions) && (() => {
-              const dailyRows = members
-                .map(([name, lunchP]) => {
-                  const bfP = meal.breakfast_portions?.[name]
-                  const dinP = meal.dinner_portions?.[name]
-                  if (!bfP && !dinP) return null
-                  return {
-                    name,
-                    total_g: lunchP.total_g + (bfP?.total_g ?? 0) + (dinP?.total_g ?? 0),
-                    protein_g: lunchP.protein_g + (bfP?.protein_g ?? 0) + (dinP?.protein_g ?? 0),
-                    carb_g: lunchP.carb_g + (bfP?.carb_g ?? 0) + (dinP?.carb_g ?? 0),
-                    vegetable_g: lunchP.vegetable_g + (bfP?.vegetable_g ?? 0) + (dinP?.vegetable_g ?? 0),
-                  }
-                })
-                .filter(Boolean) as { name: string; total_g: number; protein_g: number; carb_g: number; vegetable_g: number }[]
-              if (!dailyRows.length) return null
-              return (
-                <>
-                  <View style={styles.mealDivider} />
-                  <View style={styles.mealSectionHeader}>
-                    <Feather name="bar-chart-2" size={13} color={colors.text.muted} />
-                    <Text style={[styles.mealSectionLabel, { color: colors.text.muted }]}>TOTAL DO DIA</Text>
-                  </View>
-                  <View style={styles.portionList}>
-                    {dailyRows.map((row) => (
-                      <View key={row.name} style={styles.portionRow}>
-                        <View style={styles.portionAvatar}>
-                          <Text style={styles.portionAvatarText}>{row.name[0].toUpperCase()}</Text>
-                        </View>
-                        <View style={styles.portionMeta}>
-                          <Text style={styles.portionName}>{row.name}</Text>
-                        </View>
-                        <Text style={styles.portionWeight}>{Math.round(row.total_g)}g</Text>
-                        <View style={styles.portionBreakdown}>
-                          <Text style={styles.breakdownText}>
-                            P:{Math.round(row.protein_g)}g · C:{Math.round(row.carb_g)}g · V:{Math.round(row.vegetable_g)}g
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                </>
-              )
-            })()}
+            <View style={styles.mealDivider} />
+
+            {/* Seletor de membro — Resumo sempre primeiro */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.memberSelector}
+            >
+              <TouchableOpacity
+                style={[styles.memberPill, activeMember === 'resumo' && styles.memberPillActive]}
+                onPress={() => setActiveMember('resumo')}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.memberPillText, activeMember === 'resumo' && styles.memberPillTextActive]}>
+                  Resumo
+                </Text>
+              </TouchableOpacity>
+              {memberNames.map((name) => (
+                <TouchableOpacity
+                  key={name}
+                  style={[styles.memberPill, activeMember === name && styles.memberPillActive]}
+                  onPress={() => setActiveMember(name)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.memberPillText, activeMember === name && styles.memberPillTextActive]}>
+                    {name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {activeMember === 'resumo' ? (
+              <View style={styles.portionList}>
+                {dailyRows.map((row) => (
+                  <PortionRow key={row.name} name={row.name} portion={row} />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.portionList}>
+                {selectedBreakfast && (
+                  <MemberMealRow label="Café" icon="coffee-outline" portion={selectedBreakfast} />
+                )}
+                {selectedLunch && (
+                  <MemberMealRow
+                    label="Almoço"
+                    icon="silverware-fork-knife"
+                    portion={selectedLunch}
+                    note={selectedAltLunch}
+                  />
+                )}
+                {selectedDinner && (
+                  <MemberMealRow label="Janta" icon="weather-night" portion={selectedDinner} />
+                )}
+              </View>
+            )}
 
             <View style={styles.macroLegend}>
               <Text style={styles.macroLegendText}>P = Proteína · C = Carboidrato · V = Vegetal</Text>
@@ -482,6 +463,55 @@ function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
 
       <PrepModal meal={meal} weekStart={weekStart} visible={showPrep} onClose={() => setShowPrep(false)} />
     </>
+  )
+}
+
+function PortionRow({ name, portion }: { name: string; portion: MealPortion }) {
+  return (
+    <View style={styles.portionRow}>
+      <View style={styles.portionAvatar}>
+        <Text style={styles.portionAvatarText}>{name[0].toUpperCase()}</Text>
+      </View>
+      <View style={styles.portionMeta}>
+        <Text style={styles.portionName}>{name}</Text>
+      </View>
+      <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+      <View style={styles.portionBreakdown}>
+        <Text style={styles.breakdownText}>
+          P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+        </Text>
+      </View>
+    </View>
+  )
+}
+
+function MemberMealRow({
+  label,
+  icon,
+  portion,
+  note,
+}: {
+  label: string
+  icon: React.ComponentProps<typeof MCI>['name']
+  portion: MealPortion
+  note?: string
+}) {
+  return (
+    <View style={styles.portionRow}>
+      <View style={styles.portionAvatar}>
+        <MCI name={icon} size={14} color={colors.brand.primary} />
+      </View>
+      <View style={styles.portionMeta}>
+        <Text style={styles.portionName}>{label}</Text>
+        {note && <Text style={styles.portionAltLunch}>{note}</Text>}
+      </View>
+      <Text style={styles.portionWeight}>{Math.round(portion.total_g)}g</Text>
+      <View style={styles.portionBreakdown}>
+        <Text style={styles.breakdownText}>
+          P:{Math.round(portion.protein_g)}g · C:{Math.round(portion.carb_g)}g · V:{Math.round(portion.vegetable_g)}g
+        </Text>
+      </View>
+    </View>
   )
 }
 
@@ -763,6 +793,108 @@ function FeedbackModal({
               disabled={!text.trim() || isLoading}
             />
           </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  )
+}
+
+function PrintScopeModal({
+  visible,
+  meals,
+  weekStart,
+  onClose,
+}: {
+  visible: boolean
+  meals: DailyMeal[]
+  weekStart: string
+  onClose: () => void
+}) {
+  const [isExporting, setIsExporting] = useState(false)
+
+  async function handleExport(scopeDay?: string) {
+    setIsExporting(true)
+    try {
+      const scopedMeals = scopeDay ? meals.filter((m) => m.day === scopeDay) : meals
+      const html = buildMenuHtml(scopedMeals, weekStart)
+      const filename = scopeDay
+        ? `cardapio-${scopeDay.toLowerCase().replace(/\s+/g, '-')}.pdf`
+        : 'cardapio-completo.pdf'
+      await exportHtmlAsPdf(html, filename, 'Compartilhar cardápio')
+      onClose()
+    } catch (err: any) {
+      console.error('[PDF Menu]', err)
+      Alert.alert(
+        err.message?.includes('disponível') ? 'Indisponível' : 'Erro',
+        err.message ?? 'Não foi possível gerar o PDF.'
+      )
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe} edges={['top', 'bottom']}>
+        <View style={styles.modalHeader}>
+          <View style={styles.modalTitleBlock}>
+            <Text style={styles.modalTitle}>Imprimir cardápio</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} disabled={isExporting}>
+            <Feather name="x" size={22} color={colors.text.muted} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
+          <Text style={styles.feedbackDesc}>
+            Cada refeição vira uma página, com modo de preparo e porções por pessoa.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.printOption}
+            onPress={() => handleExport()}
+            activeOpacity={0.7}
+            disabled={isExporting}
+          >
+            <View style={styles.printOptionIcon}>
+              <Feather name="printer" size={16} color={colors.brand.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.printOptionTitle}>Cardápio inteiro</Text>
+              <Text style={styles.printOptionSubtitle}>
+                {meals.length} {meals.length === 1 ? 'dia' : 'dias'}
+              </Text>
+            </View>
+            {isExporting ? (
+              <ActivityIndicator size="small" color={colors.brand.primary} />
+            ) : (
+              <Feather name="chevron-right" size={18} color={colors.text.muted} />
+            )}
+          </TouchableOpacity>
+
+          <Text style={[styles.modalSectionTitle, styles.printSectionSpacer]}>Ou um dia específico</Text>
+
+          {meals.map((meal) => {
+            const dayDate = getDayDate(meal.day, weekStart)
+            return (
+              <TouchableOpacity
+                key={meal.day}
+                style={styles.printOption}
+                onPress={() => handleExport(meal.day)}
+                activeOpacity={0.7}
+                disabled={isExporting}
+              >
+                <View style={styles.printOptionIcon}>
+                  <MCI name="calendar-week-outline" size={16} color={colors.brand.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.printOptionTitle}>{meal.day}</Text>
+                  {!!dayDate && <Text style={styles.printOptionSubtitle}>{dayDate}</Text>}
+                </View>
+                <Feather name="chevron-right" size={18} color={colors.text.muted} />
+              </TouchableOpacity>
+            )
+          })}
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -1072,6 +1204,161 @@ function buildShoppingHtml(items: ShoppingItem[], weekStart: string, skippedCoun
 </html>`
 }
 
+interface RecipePage {
+  dayLabel: string
+  mealLabel: string
+  recipeName: string
+  timeInfo?: string
+  utensils?: string[]
+  instructions?: string[]
+  portions: Record<string, MealPortion>
+  extra?: string
+}
+
+function buildMenuHtml(meals: DailyMeal[], weekStart: string): string {
+  const pages: RecipePage[] = []
+
+  meals.forEach((meal) => {
+    const dayDate = getDayDate(meal.day, weekStart)
+    const dayLabel = dayDate ? `${meal.day.toUpperCase()} · ${dayDate}` : meal.day.toUpperCase()
+
+    if (meal.breakfast) {
+      pages.push({
+        dayLabel,
+        mealLabel: 'Café da Manhã',
+        recipeName: meal.breakfast,
+        instructions: meal.breakfast_instructions,
+        portions: meal.breakfast_portions ?? {},
+      })
+    }
+
+    pages.push({
+      dayLabel,
+      mealLabel: 'Almoço',
+      recipeName: meal.lunch,
+      timeInfo: `${meal.prep_time_min ?? 0} min de preparo · ${meal.cook_time_min ?? 0} min de cozimento`,
+      utensils: meal.utensils,
+      instructions: meal.instructions,
+      portions: meal.portions,
+      extra: meal.dessert ? `Sobremesa: ${meal.dessert}` : undefined,
+    })
+
+    if (meal.dinner) {
+      pages.push({
+        dayLabel,
+        mealLabel: 'Janta',
+        recipeName: meal.dinner,
+        utensils: meal.utensils,
+        instructions: meal.dinner_instructions,
+        portions: meal.dinner_portions ?? {},
+        extra: meal.dinner_dessert ? `Sobremesa: ${meal.dinner_dessert}` : undefined,
+      })
+    }
+  })
+
+  const pagesHtml = pages
+    .map((p, i) => {
+      const portionsHtml = Object.keys(p.portions).length
+        ? `
+        <div class="section-title">Porções por pessoa</div>
+        <div class="portions">
+          ${Object.entries(p.portions)
+            .map(
+              ([name, portion]) => `
+            <div class="portion-row">
+              <span class="portion-name">${name}</span>
+              <span class="portion-weight">${Math.round(portion.total_g)}g</span>
+              <span class="portion-breakdown">P:${Math.round(portion.protein_g)}g · C:${Math.round(portion.carb_g)}g · V:${Math.round(portion.vegetable_g)}g</span>
+            </div>`
+            )
+            .join('')}
+        </div>`
+        : ''
+
+      const utensilsHtml = p.utensils?.length
+        ? `
+        <div class="section-title">Utensílios</div>
+        <div class="chips">${p.utensils.map((u) => `<span class="chip">${u}</span>`).join('')}</div>`
+        : ''
+
+      const stepsHtml = p.instructions?.length
+        ? `
+        <div class="section-title">Modo de Preparo</div>
+        <ol class="steps">${p.instructions.map((step) => `<li>${step}</li>`).join('')}</ol>`
+        : '<div class="empty-note">Sem instruções de preparo cadastradas.</div>'
+
+      return `
+    <div class="page${i < pages.length - 1 ? ' page-break' : ''}">
+      <div class="page-header">
+        <div class="app-name">ROTINEIRA</div>
+        <div class="page-day">${p.dayLabel} &nbsp;·&nbsp; ${p.mealLabel}</div>
+      </div>
+      <div class="recipe-title">${p.recipeName}</div>
+      ${p.timeInfo ? `<div class="time-info">${p.timeInfo}</div>` : ''}
+      ${utensilsHtml}
+      ${portionsHtml}
+      ${stepsHtml}
+      ${p.extra ? `<div class="extra-note">${p.extra}</div>` : ''}
+      <div class="footer">Gerado pelo Rotineira · Planejamento de marmitas com IA</div>
+    </div>`
+    })
+    .join('')
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @page { margin: 24px 28px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, Helvetica, Arial, sans-serif;
+      color: #4A5240;
+      font-size: 14px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page { padding: 12px 4px 32px; }
+    .page-break { page-break-after: always; break-after: page; }
+    .page-header {
+      background-color: #556B2F;
+      border-radius: 14px;
+      padding: 18px 22px 14px;
+      margin-bottom: 20px;
+    }
+    .app-name { font-size: 18px; font-weight: 800; letter-spacing: 4px; color: #F8F5EE; }
+    .page-day { font-size: 11px; color: #CCDABB; margin-top: 6px; letter-spacing: 0.6px; text-transform: uppercase; }
+    .recipe-title { font-size: 24px; font-weight: 700; color: #2D3B1F; margin-bottom: 6px; }
+    .time-info { font-size: 12px; color: #9BA38D; margin-bottom: 16px; }
+    .section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px; color: #556B2F;
+      text-transform: uppercase; margin: 18px 0 8px; padding-bottom: 6px;
+      border-bottom: 2px solid #556B2F;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      font-size: 11.5px; color: #556B2F; background-color: rgba(85,107,47,0.08);
+      border: 1px solid rgba(85,107,47,0.35); border-radius: 999px; padding: 4px 10px;
+    }
+    .portions { display: flex; flex-direction: column; gap: 10px; }
+    .portion-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #EADFCF; padding-bottom: 8px; }
+    .portion-name { font-size: 13.5px; font-weight: 600; color: #2D3B1F; min-width: 90px; }
+    .portion-weight { font-size: 13px; font-weight: 700; color: #C9775D; }
+    .portion-breakdown { font-size: 11.5px; color: #9BA38D; }
+    .steps { padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+    .steps li { font-size: 13.5px; color: #2D3B1F; line-height: 1.5; padding-left: 4px; }
+    .empty-note { font-size: 13px; color: #9BA38D; font-style: italic; margin-top: 12px; }
+    .extra-note { margin-top: 16px; font-size: 12.5px; color: #C9775D; font-weight: 600; }
+    .footer { margin-top: 32px; text-align: center; font-size: 10px; color: #B5BDAA; letter-spacing: 0.3px; }
+  </style>
+</head>
+<body>
+  ${pagesHtml}
+</body>
+</html>`
+}
+
 const _CHECKED_KEY = (planId: string) => `shopping_checked_${planId}`
 
 const _PERIOD_MULTIPLIER: Record<string, number> = { weekly: 1, biweekly: 2, monthly: 4 }
@@ -1123,29 +1410,16 @@ function ShoppingSection({
 
   async function handleShare() {
     try {
-      const available = await Sharing.isAvailableAsync()
-      if (!available) {
-        Alert.alert('Indisponível', 'Compartilhamento não está disponível neste dispositivo.')
-        return
-      }
       const uncheckedItems = items.filter((i) => !checked.has(_itemKey(i)))
       const skippedCount = items.length - uncheckedItems.length
       const html = buildShoppingHtml(uncheckedItems, weekStart, skippedCount)
-      // Solicita base64 para evitar leitura cross-sandbox no Android (Expo Go).
-      const { base64 } = await Print.printToFileAsync({ html, base64: true })
-      if (!base64) throw new Error('PDF vazio retornado pelo expo-print')
-      const dest = `${FileSystem.cacheDirectory}lista-compras.pdf`
-      await FileSystem.writeAsStringAsync(dest, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      })
-      await Sharing.shareAsync(dest, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Compartilhar lista de compras',
-        UTI: 'com.adobe.pdf',
-      })
-    } catch (err) {
+      await exportHtmlAsPdf(html, 'lista-compras.pdf', 'Compartilhar lista de compras')
+    } catch (err: any) {
       console.error('[PDF Share]', err)
-      Alert.alert('Erro', 'Não foi possível gerar o PDF.')
+      Alert.alert(
+        err.message?.includes('disponível') ? 'Indisponível' : 'Erro',
+        err.message ?? 'Não foi possível gerar o PDF.'
+      )
     }
   }
 
@@ -1586,6 +1860,29 @@ const styles = StyleSheet.create({
   feedbackButton: {
     marginTop: spacing['4'],
   },
+
+  printSectionSpacer: { marginTop: spacing['2'] },
+  printOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing['3'],
+    backgroundColor: colors.background.card,
+    borderRadius: radius.md,
+    padding: spacing['4'],
+    marginBottom: spacing['2'],
+    borderWidth: 1,
+    borderColor: colors.border.light,
+  },
+  printOptionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.brand.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  printOptionTitle: { ...textStyles.bodySmall, fontFamily: fontFamily.semiBold, color: colors.text.heading },
+  printOptionSubtitle: { ...textStyles.caption, color: colors.text.muted },
 
   categorySection: { gap: spacing['2'] },
   categoryTitle: {

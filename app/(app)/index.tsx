@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView } from 'react-native'
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Switch, ScrollView, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useQuery, useMutation } from '@tanstack/react-query'
@@ -12,6 +12,7 @@ import { useAuthStore } from '../../src/store/auth'
 import { fetchFamilyProfile } from '../../src/services/family'
 import { generatePlan, type PlanPeriod } from '../../src/services/plans'
 import type { FamilyProfile } from '../../src/types/family'
+import { PRIVACY_POLICY_URL, TERMS_OF_USE_URL } from '../../src/lib/legal'
 
 const PERIOD_OPTIONS: Array<{ value: PlanPeriod; label: string; premium: boolean }> = [
   { value: 'weekly',   label: 'Semana',  premium: false },
@@ -223,6 +224,15 @@ export default function HomeScreen() {
       </ScrollView>
       <View style={styles.footer}>
         <Button label="Sair da conta" onPress={signOut} variant="outline" />
+        <View style={styles.legalRow}>
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+            Política de Privacidade
+          </Text>
+          <Text style={styles.legalDivider}>·</Text>
+          <Text style={styles.legalLink} onPress={() => Linking.openURL(TERMS_OF_USE_URL)}>
+            Termos de Uso
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   )
@@ -238,9 +248,25 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: spacing['6'],
     paddingVertical: spacing['4'],
+    gap: spacing['3'],
     borderTopWidth: 1,
     borderTopColor: colors.border.light,
     backgroundColor: colors.background.screen,
+  },
+  legalRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing['2'],
+  },
+  legalLink: {
+    ...textStyles.caption,
+    color: colors.text.muted,
+    textDecorationLine: 'underline',
+  },
+  legalDivider: {
+    ...textStyles.caption,
+    color: colors.text.muted,
   },
 
   welcome: { ...textStyles.h2, color: colors.text.heading },

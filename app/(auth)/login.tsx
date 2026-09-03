@@ -108,6 +108,8 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
+              textContentType="username"
+              importantForAutofill="yes"
               placeholder="seu@email.com"
             />
 
@@ -117,6 +119,8 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               autoComplete="password"
+              textContentType="password"
+              importantForAutofill="yes"
               placeholder="••••••••"
               rightIcon={
                 <TouchableOpacity
