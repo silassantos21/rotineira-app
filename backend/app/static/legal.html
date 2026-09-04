@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rotineira — Política de Privacidade e Termos de Uso</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,600;0,700;1,400&display=swap">
+<style>
+  :root {
+    --moss: #556B2F;
+    --moss-deep: #3E4F22;
+    --olive: #7B8D63;
+    --cream: #F8F5EE;
+    --beige: #EADFCF;
+    --terracotta: #C9775D;
+    --ink: #2B2A22;
+    --ink-soft: #55523F;
+    --rule: #DCD3BE;
+    --surface: #FFFFFF;
+    --surface-alt: var(--beige);
+    --bg: var(--cream);
+    --link: #A85F42;
+    --focus: #C9775D;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --moss: #9CB37E;
+      --moss-deep: #C7D6AE;
+      --olive: #A9B896;
+      --cream: #EDE8D8;
+      --beige: #2A2818;
+      --terracotta: #E0A184;
+      --ink: #F1EDDF;
+      --ink-soft: #C9C4AC;
+      --rule: #423F2C;
+      --surface: #221F14;
+      --surface-alt: #2A2818;
+      --bg: #1B190F;
+      --link: #E0A184;
+      --focus: #E0A184;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--link); }
+  a:focus-visible, button:focus-visible, .navlink:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+    backdrop-filter: blur(6px);
+  }
+
+  .topbar-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .wordmark {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+    color: var(--moss);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+
+  .doc-nav {
+    display: flex;
+    gap: 6px;
+    background: var(--surface-alt);
+    padding: 4px;
+    border-radius: 999px;
+  }
+
+  .doc-nav a {
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+    padding: 7px 16px;
+    border-radius: 999px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px 96px;
+  }
+
+  .doc-hero {
+    padding: 56px 0 28px;
+  }
+
+  .eyebrow {
+    display: inline-block;
+    font-weight: 700;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--olive);
+    margin: 0 0 10px;
+  }
+
+  h1 {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    font-size: clamp(1.7rem, 4vw, 2.3rem);
+    color: var(--moss-deep);
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+
+  .meta {
+    color: var(--ink-soft);
+    font-size: 0.92rem;
+    margin: 0;
+  }
+
+  .lead {
+    font-size: 1.05rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 20px 0 0;
+  }
+
+  section.doc { padding-top: 8px; }
+
+  .clause {
+    padding: 30px 0;
+    border-top: 1px solid var(--rule);
+  }
+
+  .clause:first-of-type { border-top: none; padding-top: 6px; }
+
+  .clause-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+
+  .clause-num {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--terracotta);
+    min-width: 1.6em;
+  }
+
+  h2 {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 600;
+    font-size: 1.15rem;
+    color: var(--ink);
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .clause-body {
+    max-width: 66ch;
+    color: var(--ink);
+  }
+
+  .clause-body p { margin: 0 0 12px; }
+  .clause-body p:last-child { margin-bottom: 0; }
+
+  .clause-body ul {
+    margin: 0 0 12px;
+    padding-left: 1.2em;
+  }
+  .clause-body li { margin-bottom: 6px; }
+  .clause-body li:last-child { margin-bottom: 0; }
+
+  .tag-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 14px 0 4px;
+  }
+
+  .tag {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--moss-deep);
+    background: var(--surface-alt);
+    border: 1px solid var(--rule);
+    padding: 5px 12px;
+    border-radius: 999px;
+  }
+
+  .callout {
+    background: var(--surface-alt);
+    border-left: 3px solid var(--terracotta);
+    padding: 14px 18px;
+    border-radius: 4px;
+    margin-top: 14px;
+    font-size: 0.95rem;
+    color: var(--ink);
+  }
+
+  .divider-section {
+    max-width: 720px;
+    margin: 8px auto 0;
+    padding: 64px 24px;
+    text-align: center;
+  }
+
+  .divider-section .rule {
+    height: 1px;
+    background: var(--rule);
+    margin: 0 auto 28px;
+    max-width: 120px;
+  }
+
+  .divider-section p {
+    color: var(--olive);
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+
+  footer.doc-footer {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 72px;
+    color: var(--ink-soft);
+    font-size: 0.88rem;
+    border-top: 1px solid var(--rule);
+  }
+
+  footer.doc-footer a { color: var(--link); }
+
+  .back-top {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    background: var(--terracotta);
+    color: var(--surface);
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 0.8rem;
+    padding: 10px 16px;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    opacity: 0.92;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  @media (max-width: 480px) {
+    .topbar-inner { padding: 14px 18px; }
+    main { padding: 0 18px 72px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="wordmark">ROTINEIRA</span>
+    <nav class="doc-nav" aria-label="Alternar documento">
+      <a href="#privacidade">Privacidade</a>
+      <a href="#termos">Termos de Uso</a>
+    </nav>
+  </div>
+</div>
+
+<main>
+
+  <section class="doc" id="privacidade">
+    <div class="doc-hero">
+      <p class="eyebrow">Documento legal · 01</p>
+      <h1>Política de Privacidade</h1>
+      <p class="meta">Última atualização: 22 de agosto de 2026</p>
+      <p class="lead">Como o Rotineira coleta, usa e protege os dados da sua família para gerar cardápios, listas de compras e guias de marmita.</p>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">1</span>
+        <h2>Quem trata os seus dados</h2>
+      </div>
+      <div class="clause-body">
+        <p>O Rotineira é um aplicativo operado por Silas Santos, pessoa física, responsável pelo tratamento dos dados pessoais coletados através do app, na qualidade de controlador nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018 — LGPD).</p>
+        <p>Dúvidas, solicitações ou reclamações sobre privacidade podem ser enviadas para <a href="mailto:silasribeiro11@gmail.com">silasribeiro11@gmail.com</a>.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">2</span>
+        <h2>Dados que coletamos</h2>
+      </div>
+      <div class="clause-body">
+        <p>Para funcionar, o Rotineira coleta as seguintes categorias de dados:</p>
+        <ul>
+          <li><strong>Cadastro:</strong> nome, e-mail e senha (ou autenticação via Google), gerenciados pelo Supabase Auth.</li>
+          <li><strong>Perfil familiar:</strong> nome, tipo (adulto/criança), nível de apetite, restrições alimentares e limite calórico de cada membro da família cadastrado por você.</li>
+          <li><strong>Preferências de planejamento:</strong> orçamento semanal informado, período de geração escolhido e histórico de cardápios gerados ou adaptados.</li>
+          <li><strong>Dados de assinatura:</strong> status do plano (gratuito ou Premium), gerenciado via RevenueCat e pelas lojas de aplicativos (Apple App Store / Google Play).</li>
+          <li><strong>Dados técnicos:</strong> token de notificação push (Expo), identificadores de sessão e registros de uso para prevenção de abuso.</li>
+        </ul>
+        <div class="tag-row">
+          <span class="tag">Restrições alimentares</span>
+          <span class="tag">Dado de saúde sensível</span>
+        </div>
+        <div class="callout">Restrições alimentares e informações de saúde de crianças são inseridas voluntariamente pelo responsável familiar, não pela criança. Trate-as como dado sensível: só cadastre o que for necessário para o planejamento das refeições.</div>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">3</span>
+        <h2>Como usamos os dados</h2>
+      </div>
+      <div class="clause-body">
+        <p>Usamos os dados coletados exclusivamente para:</p>
+        <ul>
+          <li>Gerar cardápios semanais e calcular porções individuais com inteligência artificial;</li>
+          <li>Montar listas de compras consolidadas e guias de montagem de marmitas;</li>
+          <li>Aplicar limites de uso do plano gratuito e liberar recursos Premium após confirmação de pagamento;</li>
+          <li>Enviar notificações sobre o andamento da geração do seu cardápio;</li>
+          <li>Manter histórico de planos anteriores para consulta e reaproveitamento.</li>
+        </ul>
+        <p>Não usamos os dados da sua família para treinar modelos de inteligência artificial de terceiros nem para publicidade direcionada.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">4</span>
+        <h2>Com quem compartilhamos</h2>
+      </div>
+      <div class="clause-body">
+        <p>Para operar o app, alguns dados são processados por prestadores de serviço, sempre sob obrigação contratual de confidencialidade:</p>
+        <ul>
+          <li><strong>Google (Gemini API):</strong> recebe os dados do perfil familiar necessários para gerar o cardápio (apetite, restrições, orçamento). Não enviamos e-mail ou senha para esse serviço.</li>
+          <li><strong>Supabase:</strong> hospeda o banco de dados e a autenticação da sua conta.</li>
+          <li><strong>Railway:</strong> hospeda o servidor de backend que processa as requisições do app.</li>
+          <li><strong>Upstash (Redis):</strong> armazena cardápios já gerados em cache por até 7 dias, para evitar reprocessamento.</li>
+          <li><strong>RevenueCat, Apple e Google:</strong> processam pagamentos e status de assinatura — o Rotineira não tem acesso a dados de cartão de crédito.</li>
+          <li><strong>Expo:</strong> entrega notificações push ao seu dispositivo.</li>
+        </ul>
+        <p>Não vendemos dados pessoais a terceiros.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">5</span>
+        <h2>Retenção e exclusão</h2>
+      </div>
+      <div class="clause-body">
+        <p>Mantemos seus dados enquanto sua conta estiver ativa. Cardápios em cache expiram automaticamente em até 7 dias. Você pode solicitar a exclusão completa da sua conta e dos dados associados a qualquer momento, escrevendo para <a href="mailto:silasribeiro11@gmail.com">silasribeiro11@gmail.com</a> — o pedido é atendido em até 15 dias úteis.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">6</span>
+        <h2>Seus direitos como titular</h2>
+      </div>
+      <div class="clause-body">
+        <p>Nos termos da LGPD, você pode solicitar a qualquer momento:</p>
+        <ul>
+          <li>Confirmação da existência de tratamento e acesso aos seus dados;</li>
+          <li>Correção de dados incompletos, inexatos ou desatualizados;</li>
+          <li>Anonimização, bloqueio ou eliminação de dados desnecessários;</li>
+          <li>Portabilidade dos dados a outro fornecedor;</li>
+          <li>Revogação do consentimento e eliminação dos dados tratados com base nele.</li>
+        </ul>
+        <p>Essas solicitações podem ser feitas diretamente no app (Perfil Familiar → editar ou remover membros) ou por e-mail para exclusões de conta.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">7</span>
+        <h2>Segurança</h2>
+      </div>
+      <div class="clause-body">
+        <p>Toda comunicação entre o app e o servidor é feita via HTTPS. O acesso à conta é protegido por autenticação JWT gerenciada pelo Supabase. O acesso interno aos dados é restrito à operação do serviço.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">8</span>
+        <h2>Alterações desta política</h2>
+      </div>
+      <div class="clause-body">
+        <p>Esta política pode ser atualizada para refletir mudanças no app ou na legislação. Alterações relevantes serão comunicadas dentro do próprio aplicativo. A data no topo desta página indica a versão vigente.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider-section">
+    <div class="rule"></div>
+    <p>Continua abaixo · Termos de Uso</p>
+  </div>
+
+  <section class="doc" id="termos">
+    <div class="doc-hero">
+      <p class="eyebrow">Documento legal · 02</p>
+      <h1>Termos de Uso</h1>
+      <p class="meta">Última atualização: 22 de agosto de 2026</p>
+      <p class="lead">As regras de uso do Rotineira, incluindo o funcionamento dos planos gratuito e Premium.</p>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">1</span>
+        <h2>Sobre o serviço</h2>
+      </div>
+      <div class="clause-body">
+        <p>O Rotineira é um aplicativo que usa inteligência artificial para gerar cardápios semanais personalizados, calcular porções por membro da família e produzir listas de compras e guias de montagem de marmitas. Ao criar uma conta, você concorda com estes Termos de Uso e com a Política de Privacidade acima.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">2</span>
+        <h2>Sua conta</h2>
+      </div>
+      <div class="clause-body">
+        <p>Você é responsável por manter a confidencialidade das suas credenciais de acesso e por todas as atividades realizadas na sua conta. Informe dados verdadeiros no cadastro do perfil familiar — a qualidade das sugestões de cardápio depende disso.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">3</span>
+        <h2>Planos gratuito e Premium</h2>
+      </div>
+      <div class="clause-body">
+        <ul>
+          <li><strong>Gratuito:</strong> 1 geração de cardápio por semana, até 3 membros na família, apenas almoço, período semanal.</li>
+          <li><strong>Premium:</strong> gerações ilimitadas, até 10 membros, períodos de 15 dias ou mensal, café da manhã, janta e sobremesa, histórico completo e adaptação de cardápios por IA.</li>
+        </ul>
+        <p>A assinatura Premium é processada pela Apple App Store ou Google Play, conforme a loja de onde o app foi instalado, e renovada automaticamente até que seja cancelada. O cancelamento é feito diretamente nas configurações de assinatura da sua conta Apple ou Google — o Rotineira não processa nem armazena dados de pagamento.</p>
+        <p>Preços, formas de cobrança e política de reembolso seguem as regras da loja de aplicativos correspondente.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">4</span>
+        <h2>Conteúdo gerado por inteligência artificial</h2>
+      </div>
+      <div class="clause-body">
+        <div class="callout">Os cardápios, porções e estimativas de preço são gerados por IA a partir das informações que você fornece. Eles são sugestões de planejamento doméstico — não substituem orientação de nutricionista, médico ou outro profissional de saúde.</div>
+        <p>Você é responsável por conferir cada cardápio sugerido contra as restrições alimentares e alergias reais da sua família antes de preparar ou servir qualquer refeição. Estimativas de preço são calibradas por referência e podem não refletir os preços praticados no seu mercado local.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">5</span>
+        <h2>Uso aceitável</h2>
+      </div>
+      <div class="clause-body">
+        <p>Ao usar o Rotineira, você concorda em não:</p>
+        <ul>
+          <li>Tentar acessar contas de outros usuários ou dados que não sejam seus;</li>
+          <li>Fazer engenharia reversa, copiar ou revender o serviço ou os cardápios gerados em escala comercial;</li>
+          <li>Automatizar chamadas à API do app fora do uso normal previsto pela interface;</li>
+          <li>Usar o app para fins ilegais ou que violem direitos de terceiros.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">6</span>
+        <h2>Propriedade intelectual</h2>
+      </div>
+      <div class="clause-body">
+        <p>A marca Rotineira, o design do aplicativo e o software são de propriedade do responsável pelo app. Os cardápios gerados para a sua conta são seus, para uso pessoal e familiar.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">7</span>
+        <h2>Suspensão e encerramento</h2>
+      </div>
+      <div class="clause-body">
+        <p>Podemos suspender ou encerrar contas que violem estes Termos, sem prejuízo de outras medidas cabíveis. Você pode encerrar sua conta a qualquer momento solicitando exclusão pelo e-mail de contato.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">8</span>
+        <h2>Limitação de responsabilidade</h2>
+      </div>
+      <div class="clause-body">
+        <p>O Rotineira é fornecido "como está". Não garantimos disponibilidade ininterrupta do serviço nem a precisão absoluta de estimativas nutricionais ou de preço geradas por IA. Na máxima extensão permitida pela lei, não nos responsabilizamos por danos indiretos decorrentes do uso das sugestões do app.</p>
+      </div>
+    </div>
+
+    <div class="clause">
+      <div class="clause-head">
+        <span class="clause-num">9</span>
+        <h2>Lei aplicável</h2>
+      </div>
+      <div class="clause-body">
+        <p>Estes Termos são regidos pelas leis da República Federativa do Brasil. Eventuais alterações relevantes serão comunicadas dentro do aplicativo, com a data de vigência atualizada no topo desta página.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="doc-footer">
+  <p>Rotineira — planejamento de marmitas em família. Contato: <a href="mailto:silasribeiro11@gmail.com">silasribeiro11@gmail.com</a></p>
+</footer>
+
+<a class="back-top" href="#privacidade">↑ Início</a>
+
+</body></html>

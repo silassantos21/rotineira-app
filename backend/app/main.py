@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.v1.router import api_router
+from app.api.legal import router as legal_router
 
 if settings.SENTRY_DSN:
     sentry_sdk.init(dsn=settings.SENTRY_DSN, traces_sample_rate=0.2)
@@ -23,3 +24,4 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+app.include_router(legal_router)

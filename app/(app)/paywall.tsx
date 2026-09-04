@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native'
 import { Stack, router } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Feather, MaterialCommunityIcons as MCI } from '@expo/vector-icons'
+import * as WebBrowser from 'expo-web-browser'
 import { colors } from '../../src/theme/colors'
 import { textStyles, fontFamily } from '../../src/theme/typography'
 import { spacing, radius, shadow } from '../../src/theme/spacing'
@@ -227,11 +227,11 @@ export default function PaywallScreen() {
             A assinatura é renovada automaticamente. Cancele quando quiser pela loja de apps.
           </Text>
           <View style={styles.legalLinksRow}>
-            <Text style={styles.legalLink} onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
+            <Text style={styles.legalLink} onPress={() => WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}>
               Política de Privacidade
             </Text>
             <Text style={styles.legalDivider}>·</Text>
-            <Text style={styles.legalLink} onPress={() => Linking.openURL(TERMS_OF_USE_URL)}>
+            <Text style={styles.legalLink} onPress={() => WebBrowser.openBrowserAsync(TERMS_OF_USE_URL)}>
               Termos de Uso
             </Text>
           </View>

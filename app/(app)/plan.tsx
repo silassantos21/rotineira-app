@@ -294,7 +294,7 @@ function MealsSection({ meals, weekStart }: { meals: DailyMeal[]; weekStart: str
 
 function MealCard({ meal, weekStart }: { meal: DailyMeal; weekStart: string }) {
   const [showPrep, setShowPrep] = useState(false)
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const [activeMember, setActiveMember] = useState<string>('resumo')
   const memberNames = Object.keys(meal.portions)
   const totalTime = (meal.prep_time_min ?? 0) + (meal.cook_time_min ?? 0)
